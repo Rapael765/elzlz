@@ -1,0 +1,13 @@
+.tiles{display:grid;gap:14px;margin:18px 0}
+.tile-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tile{background:#fff;border:1px solid #eef0f6;border-radius:22px;padding:18px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 6px 24px rgba(30,40,80,.08)}
+.tile small{display:block;font-weight:800;letter-spacing:.06em;color:#64748b;font-size:13px}
+.tile strong{display:block;margin-top:4px;font-size:32px;color:#0f172a}
+.tile.big{display:block;background:linear-gradient(135deg,#fff 55%,#e6f6ec)}
+.tile-top{display:flex;justify-content:space-between;align-items:flex-start}
+.tile .huge{font-size:42px}
+.tile-sub{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:14px;border-top:2px dashed #cbd5e1}
+.sub{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid #e5e7eb;border-radius:18px;padding:12px;background:#fff}
+.sub strong{font-size:20px}
+.ico{flex:none;width:50px;height:50px;border-radius:16px;display:grid;place-items:center;font-size:24px}
+.ico.ok{background:#e2f6e9}.ico.bad{background:#fbe9e9}.ico.safe{background:#d9f0e6}.ico.warn{background:#fdf0dc}.ico.info{background:#e3edfd}

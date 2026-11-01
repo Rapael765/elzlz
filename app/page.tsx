@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import "./stats.css";
 
 type Contact = { id: string; name: string; phone: string; opted_in: boolean; unsubscribed_at: string | null };
 type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string };
@@ -10,6 +11,10 @@ export default function Home() {
   const supabase = createClient();
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
+  const [run, setRun] = useState<any>(null);
+  const [overview, setOverview] = useState<any>(null);
+  const [price, setPrice] = useState("");
   const [mode, setMode] = useState<"login"|"signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +67,13 @@ export default function Home() {
       supabase.from("message_logs").select("*").order("created_at", {ascending:false}).limit(20)
     ]);
     setContacts(c || []); setCampaigns(ca || []); setLogs(l || []);
+    const { data: st } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle(); setSettings(st);
+    const { data: ru } = await supabase.from("user_runs").select("*").eq("user_id", session.user.id).maybeSingle(); setRun(ru);
+    if (p?.role === "admin") {
+      const { data: { session: cur } } = await supabase.auth.getSession();
+      const r = await fetch("/api/admin/overview", { headers: { Authorization: `Bearer ${cur?.access_token}` } });
+      if (r.ok) setOverview(await r.json());
+    }
   }
 
   async function auth() {
@@ -118,6 +130,17 @@ export default function Home() {
     const body = await res.json(); setNotice(body.message || body.error || "Selesai."); loadDashboard();
   }
 
+  async function savePrice() {
+    const v = parseInt(price, 10);
+    if (isNaN(v) || v < 0) return setNotice("Isi tarif dengan angka (Rp).");
+    const { error } = await supabase.from("app_settings").update({ price_per_message: v }).eq("id", 1);
+    setNotice(error ? error.message : "Tarif per pesan disimpan."); setPrice(""); loadDashboard();
+  }
+  async function payout(uid: string) {
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    const r = await fetch("/api/admin/payout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid }) });
+    const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+  }
   async function signOut() { await supabase.auth.signOut(); setProfile(null); }
 
   if (!session) return <main className="auth-shell">
@@ -137,7 +160,15 @@ export default function Home() {
   const active = contacts.filter(c=>c.opted_in && !c.unsubscribed_at).length;
   const isAdmin = profile?.role === "admin";
   const current = campaigns[0];
-  const statusLabel = !current ? "Belum ada" : current.status==="running" ? "● Berjalan" : current.status==="completed" ? "Selesai" : current.status==="stopped" ? "Dihentikan" : "Siap";
+  const running = run?.status === "running";
+  const doneThis = run?.status === "completed" && run?.campaign_id === current?.id;
+  const statusLabel = !current ? "Belum ada" : running ? "● Berjalan" : doneThis ? "Selesai" : run?.status === "stopped" ? "Dihentikan" : "Siap";
+  const rp = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
+  const onlineN = isAdmin ? (overview?.online ?? 0) : (waStatus?.connected ? 1 : 0);
+  const offlineN = isAdmin ? (overview?.offline ?? 0) : (waStatus?.connected ? 0 : 1);
+  const balanceN = isAdmin ? (overview?.balanceTotal ?? 0) : (profile?.balance ?? 0);
+  const earnedN = isAdmin ? (overview?.earnedTotal ?? 0) : (profile?.earned ?? 0);
+  const successN = isAdmin ? (overview?.successTotal ?? 0) : (profile?.success_count ?? 0);
 
   return <main className="dashboard">
     <header className="topbar"><div className="brand"><span className="brand-mark small">ES</span><div><b>El Shop Manager</b><small>Promotion dashboard</small></div></div>
@@ -159,17 +190,35 @@ export default function Home() {
         <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
         {current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Admin belum membuat campaign.</p>}
         <p className="tiny"><b>Kecepatan kirim</b></p>
-        <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={current?.status==="running"}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
+        <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={running}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
         <p className="tiny">Slow: aman, sekitar 2 pesan/menit. Medium: sekitar 5 pesan/menit. Fast: sekitar 8 pesan/menit (risiko akun dibatasi WhatsApp lebih tinggi).</p>
-        {current?.status==="running" ? <button className="danger" onClick={()=>stopCampaign(current.id)}>Hentikan</button> : <button className="primary" disabled={busy || !current || !waStatus?.connected || current.status==="completed"} onClick={()=>startCampaign(current.id)}>▶ Mulai</button>}
+        {running ? <button className="danger" onClick={()=>stopCampaign(current.id)}>Hentikan</button> : <button className="primary" disabled={busy || !current || !waStatus?.connected || doneThis} onClick={()=>startCampaign(current.id)}>▶ Mulai</button>}
         {!waStatus?.connected && <p className="tiny">Hubungkan WhatsApp dulu untuk memulai.</p>}
       </section>
 
-      {isAdmin && <section className="stats">
-        <article className="stat"><span>Total database</span><strong>{contacts.length}</strong><small>Kontak tersimpan</small></article>
-        <article className="stat"><span>Siap menerima promosi</span><strong>{active}</strong><small>Sudah memberi persetujuan</small></article>
-        <article className="stat"><span>Campaign</span><strong>{campaigns.length}</strong><small>Total campaign dibuat</small></article>
-        <article className="stat"><span>Peran akun</span><strong>{isAdmin ? "Admin" : "User"}</strong><small>{isAdmin ? "Akses pengelolaan" : "Akses toko"}</small></article>
+      <section className="tiles">
+        <div className="tile-row">
+          <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok">📡</span></article>
+          <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad">🔌</span></article>
+        </div>
+        <article className="tile big">
+          <div className="tile-top"><div><small>🧾 BALANCE</small><strong className="huge">{rp(balanceN)}</strong></div><span className="ico safe">🗄️</span></div>
+          <div className="tile-sub">
+            <div className="sub"><div><small>Pendapatan</small><strong>{rp(earnedN)}</strong></div><span className="ico warn">💵</span></div>
+            <div className="sub"><div><small>Pesan Sukses</small><strong>{successN}</strong></div><span className="ico info">💬</span></div>
+          </div>
+          <p className="tiny">Tarif {rp(settings?.price_per_message || 0)} per pesan sukses. Pesan gagal tidak dihitung.</p>
+        </article>
+      </section>
+
+      {isAdmin && <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">PENGATURAN ADMIN</p><h2>Tarif &amp; pengguna</h2></div></div>
+        <p className="tiny">Tarif saat ini: {rp(settings?.price_per_message || 0)} per pesan sukses.</p>
+        <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Tarif baru, contoh 50" inputMode="numeric" />
+        <button className="primary" onClick={savePrice}>Simpan tarif</button>
+        <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Perangkat</th><th>Saldo</th><th></th></tr></thead><tbody>
+          {(overview?.users || []).map((u: any) => <tr key={u.id}><td>{u.name || u.email}<br /><small>{u.email}</small></td><td>{u.online ? "🟢 Online" : "⚪ Offline"}</td><td>{rp(u.balance)}<br /><small>{u.success_count} pesan</small></td><td><button className="ghost" onClick={() => payout(u.id)} disabled={!u.balance}>Reset saldo</button></td></tr>)}
+        </tbody></table></div>
       </section>}
 
       {isAdmin && <div className="grid">
