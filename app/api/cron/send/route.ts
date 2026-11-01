@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
+const PER_RUN: Record<string, number> = { slow: 2, medium: 5, fast: 8 };
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
       .eq("opted_in", true).is("unsubscribed_at", null).order("created_at", {ascending:true}).limit(5000);
     const { data: previousLogs } = await db.from("message_logs").select("contact_id").eq("campaign_id", campaign.id);
     const alreadyProcessed = new Set((previousLogs || []).map((row: any) => row.contact_id));
-    const contacts = (allContacts || []).filter((contact: any) => !alreadyProcessed.has(contact.id)).slice(0, 2);
+    const contacts = (allContacts || []).filter((contact: any) => !alreadyProcessed.has(contact.id)).slice(0, PER_RUN[campaign.speed_mode] || 2);
     if (!contacts.length) {
       await db.from("campaigns").update({status:"completed", completed_at:new Date().toISOString()}).eq("id", campaign.id);
       continue;
