@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Contact = { id: string; name: string; phone: string; opted_in: boolean; unsubscribed_at: string | null };
-type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string };
+type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string };
 type Log = { id: string; phone: string; status: string; error: string | null; created_at: string };
 
 export default function Home() {
@@ -29,6 +29,7 @@ export default function Home() {
   const [waQr, setWaQr] = useState("");
   const [pairPhone, setPairPhone] = useState("");
   const [pairCode, setPairCode] = useState("");
+  const [speed, setSpeed] = useState<"slow"|"medium"|"fast">("slow");
 
   useEffect(() => {
     supabase.auth.getSession().then(({data}) => setSession(data.session));
@@ -36,7 +37,9 @@ export default function Home() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => { if (session) { loadDashboard(); loadWaStatus(); const timer = setInterval(loadWaStatus, 8000); return () => clearInterval(timer); } }, [session]);
+  useEffect(() => { if (session) { loadDashboard(); loadWaStatus(); const timer = setInterval(() => { loadWaStatus(); loadDashboard(); }, 8000); return () => clearInterval(timer); } }, [session]);
+  useEffect(() => { if (!session || !waQr || waStatus?.connected) return; const t = setInterval(async () => { try { const d = await waRequest("/api/baileys/qr"); if (d.qr) setWaQr(d.qr); } catch {} }, 4000); return () => clearInterval(t); }, [session, waQr, waStatus?.connected]);
+  useEffect(() => { if (waStatus?.connected) { setWaQr(""); setPairCode(""); } }, [waStatus?.connected]);
 
   async function waRequest(path: string, method = "GET", body?: any) {
     const { data: { session: s } } = await supabase.auth.getSession();
@@ -99,7 +102,7 @@ export default function Home() {
     const { data: { session: s } } = await supabase.auth.getSession();
     const res = await fetch("/api/campaigns/start", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${s?.access_token}` },
-      body: JSON.stringify({ campaignId: id })
+      body: JSON.stringify({ campaignId: id, speed })
     });
     const body = await res.json();
     setBusy(false); setNotice(body.message || body.error || "Permintaan selesai.");
@@ -133,6 +136,8 @@ export default function Home() {
 
   const active = contacts.filter(c=>c.opted_in && !c.unsubscribed_at).length;
   const isAdmin = profile?.role === "admin";
+  const current = campaigns[0];
+  const statusLabel = !current ? "Belum ada" : current.status==="running" ? "● Berjalan" : current.status==="completed" ? "Selesai" : current.status==="stopped" ? "Dihentikan" : "Siap";
 
   return <main className="dashboard">
     <header className="topbar"><div className="brand"><span className="brand-mark small">ES</span><div><b>El Shop Manager</b><small>Promotion dashboard</small></div></div>
@@ -150,14 +155,24 @@ export default function Home() {
         {waStatus?.connected && <button className="danger" onClick={disconnectWa}>Putuskan WhatsApp</button>}
       </section>
 
-      <section className="stats">
+      <section className="panel run-panel">
+        <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
+        {current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Admin belum membuat campaign.</p>}
+        <p className="tiny"><b>Kecepatan kirim</b></p>
+        <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={current?.status==="running"}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
+        <p className="tiny">Slow: aman, sekitar 2 pesan/menit. Medium: sekitar 5 pesan/menit. Fast: sekitar 8 pesan/menit (risiko akun dibatasi WhatsApp lebih tinggi).</p>
+        {current?.status==="running" ? <button className="danger" onClick={()=>stopCampaign(current.id)}>Hentikan</button> : <button className="primary" disabled={busy || !current || !waStatus?.connected || current.status==="completed"} onClick={()=>startCampaign(current.id)}>▶ Mulai</button>}
+        {!waStatus?.connected && <p className="tiny">Hubungkan WhatsApp dulu untuk memulai.</p>}
+      </section>
+
+      {isAdmin && <section className="stats">
         <article className="stat"><span>Total database</span><strong>{contacts.length}</strong><small>Kontak tersimpan</small></article>
         <article className="stat"><span>Siap menerima promosi</span><strong>{active}</strong><small>Sudah memberi persetujuan</small></article>
         <article className="stat"><span>Campaign</span><strong>{campaigns.length}</strong><small>Total campaign dibuat</small></article>
         <article className="stat"><span>Peran akun</span><strong>{isAdmin ? "Admin" : "User"}</strong><small>{isAdmin ? "Akses pengelolaan" : "Akses toko"}</small></article>
-      </section>
+      </section>}
 
-      <div className="grid">
+      {isAdmin && <div className="grid">
         <section className="panel">
           <div className="panel-heading"><div><p className="eyebrow">DATABASE PELANGGAN</p><h2>Tambah nomor</h2></div><span className="tag">Opt-in wajib</span></div>
           <div className="form-grid"><label>Nama pelanggan<input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="Nama pelanggan" /></label><label>Nomor WhatsApp<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="62812xxxxxxx" /></label></div>
@@ -180,14 +195,14 @@ export default function Home() {
           <div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name} · {c.status}</small></div><div className="actions">{c.status==="running"?<button className="danger" onClick={()=>stopCampaign(c.id)}>Hentikan</button>:<button className="primary compact" disabled={busy||c.status==="completed"} onClick={()=>startCampaign(c.id)}>Mulai</button>}</div></div>)}
             {!campaigns.length && <p className="empty">Belum ada campaign.</p>}</div>
         </section>
-      </div>
+      </div>}
 
-      <section className="panel log-panel"><div className="panel-heading"><div><p className="eyebrow">AKTIVITAS TERBARU</p><h2>Riwayat pengiriman</h2></div><button className="ghost" onClick={loadDashboard}>Muat ulang</button></div>
+      {isAdmin && <section className="panel log-panel"><div className="panel-heading"><div><p className="eyebrow">AKTIVITAS TERBARU</p><h2>Riwayat pengiriman</h2></div><button className="ghost" onClick={loadDashboard}>Muat ulang</button></div>
         <div className="table-wrap"><table><thead><tr><th>Nomor</th><th>Status</th><th>Detail</th><th>Waktu</th></tr></thead><tbody>
           {logs.map(l=><tr key={l.id}><td>{l.phone}</td><td>{l.status}</td><td>{l.error || "—"}</td><td>{new Date(l.created_at).toLocaleString("id-ID")}</td></tr>)}
           {!logs.length && <tr><td colSpan={4} className="empty">Belum ada riwayat pengiriman.</td></tr>}
         </tbody></table></div>
-      </section>
+      </section>}
       {isAdmin && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
       <footer>El Shop Manager · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
     </div>
