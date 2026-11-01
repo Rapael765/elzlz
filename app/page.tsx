@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./stats.css";
 
@@ -31,6 +31,10 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [waStatus, setWaStatus] = useState<any>(null);
+  const [slot, setSlot] = useState(1);
+  const slotRef = useRef(1);
+  slotRef.current = slot;
+  const [devices, setDevices] = useState<any[]>([]);
   const [waQr, setWaQr] = useState("");
   const [pairPhone, setPairPhone] = useState("");
   const [pairCode, setPairCode] = useState("");
@@ -43,17 +47,18 @@ export default function Home() {
   }, []);
 
   useEffect(() => { if (session) { loadDashboard(); loadWaStatus(); const timer = setInterval(() => { loadWaStatus(); loadDashboard(); }, 8000); return () => clearInterval(timer); } }, [session]);
-  useEffect(() => { if (!session || !waQr || waStatus?.connected) return; const t = setInterval(async () => { try { const d = await waRequest("/api/baileys/qr"); if (d.qr) setWaQr(d.qr); } catch {} }, 4000); return () => clearInterval(t); }, [session, waQr, waStatus?.connected]);
+  useEffect(() => { if (!session || !waQr || waStatus?.connected) return; const t = setInterval(async () => { try { const d = await waRequest("/api/baileys/qr"); if (d.qr) setWaQr(d.qr); } catch {} }, 4000); return () => clearInterval(t); }, [session, waQr, waStatus?.connected, slot]);
+  useEffect(() => { setWaQr(""); setPairCode(""); setWaStatus(null); if (session) loadWaStatus(); }, [slot]);
   useEffect(() => { if (waStatus?.connected) { setWaQr(""); setPairCode(""); } }, [waStatus?.connected]);
 
   async function waRequest(path: string, method = "GET", body?: any) {
     const { data: { session: s } } = await supabase.auth.getSession();
-    const response = await fetch(path, { method, headers: { Authorization: `Bearer ${s?.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const response = await fetch(path + (path.includes("?") ? "&" : "?") + "slot=" + slotRef.current, { method, headers: { Authorization: `Bearer ${s?.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Permintaan WhatsApp gagal.");
     return data;
   }
-  async function loadWaStatus() { try { setWaStatus(await waRequest("/api/baileys/status")); } catch (e: any) { setWaStatus({ connected: false, lastError: e.message }); } }
+  async function loadWaStatus() { try { const dv = await waRequest("/api/baileys/devices"); setDevices(dv.devices || []); } catch {} try { setWaStatus(await waRequest("/api/baileys/status")); } catch (e: any) { setWaStatus({ connected: false, lastError: e.message }); } }
   async function showQr() { setNotice(""); setWaQr(""); try { await waRequest("/api/baileys/connect", "POST", {}); await new Promise(r => setTimeout(r, 2500)); const d = await waRequest("/api/baileys/qr"); setWaQr(d.qr || ""); } catch (e: any) { setNotice(e.message); } await loadWaStatus(); }
   async function getPairingCode() { setNotice(""); setPairCode(""); try { const d = await waRequest("/api/baileys/pairing", "POST", { phone: pairPhone }); setPairCode(d.code || ""); } catch (e: any) { setNotice(e.message); } await loadWaStatus(); }
   async function disconnectWa() { try { const d = await waRequest("/api/baileys/disconnect", "POST", {}); setNotice(d.message || "WhatsApp diputus."); setWaQr(""); setPairCode(""); await loadWaStatus(); } catch (e: any) { setNotice(e.message); } }
@@ -141,6 +146,16 @@ export default function Home() {
     const r = await fetch("/api/admin/payout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid }) });
     const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
+  async function sendNow() {
+    setBusy(true);
+    try { const d = await waRequest("/api/campaigns/tick", "POST", {}); setNotice(d.message); } catch (e: any) { setNotice(e.message); }
+    setBusy(false); loadDashboard();
+  }
+  async function setLimit(uid: string, v: string) {
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    const r = await fetch("/api/admin/limit", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid, maxDevices: Number(v) }) });
+    const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+  }
   async function signOut() { await supabase.auth.signOut(); setProfile(null); }
 
   if (!session) return <main className="auth-shell">
@@ -164,8 +179,8 @@ export default function Home() {
   const doneThis = run?.status === "completed" && run?.campaign_id === current?.id;
   const statusLabel = !current ? "Belum ada" : running ? "● Berjalan" : doneThis ? "Selesai" : run?.status === "stopped" ? "Dihentikan" : "Siap";
   const rp = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
-  const onlineN = isAdmin ? (overview?.online ?? 0) : (waStatus?.connected ? 1 : 0);
-  const offlineN = isAdmin ? (overview?.offline ?? 0) : (waStatus?.connected ? 0 : 1);
+  const onlineN = isAdmin ? (overview?.online ?? 0) : devices.filter((d: any) => d.connected).length;
+  const offlineN = isAdmin ? (overview?.offline ?? 0) : devices.filter((d: any) => d.registered && !d.connected).length;
   const balanceN = isAdmin ? (overview?.balanceTotal ?? 0) : (profile?.balance ?? 0);
   const earnedN = isAdmin ? (overview?.earnedTotal ?? 0) : (profile?.earned ?? 0);
   const successN = isAdmin ? (overview?.successTotal ?? 0) : (profile?.success_count ?? 0);
@@ -182,6 +197,8 @@ export default function Home() {
         <p className="muted">Backend berjalan di server Pterodactyl. Hubungkan akun WhatsApp milik toko melalui QR atau pairing code.</p>
         <div className="form-grid"><div><button className="primary" onClick={showQr} disabled={!!waStatus?.connected}>Tampilkan QR Code</button>{waQr && <div className="qr-box"><img src={waQr} alt="QR WhatsApp untuk ditautkan" /><small>WhatsApp → Perangkat tertaut → Tautkan perangkat</small></div>}</div>
           <div><label>Nomor WhatsApp<input value={pairPhone} onChange={e=>setPairPhone(e.target.value)} placeholder="62812xxxxxxx" /></label><button className="primary" onClick={getPairingCode} disabled={!!waStatus?.connected}>Buat Pairing Code</button>{pairCode && <div className="pair-code">{pairCode}</div>}</div></div>
+        <div style={{display:"flex",gap:8,margin:"8px 0",flexWrap:"wrap"}}>{Array.from({ length: profile?.max_devices ?? 3 }, (_, i) => i + 1).map(n => { const d = devices.find((x: any) => x.slot === n); return <button key={n} className={slot === n ? "primary compact" : "ghost"} onClick={() => setSlot(n)}>{d?.connected ? "🟢" : "⚪"} Perangkat {n}</button>; })}</div>
+        <p className="tiny">Kamu bisa menautkan sampai {profile?.max_devices ?? 3} perangkat. Perangkat hanya milik akunmu dan tidak tercampur dengan akun lain.</p>
         {waStatus?.phone && <p className="tiny">Nomor terhubung: {waStatus.phone}</p>}{waStatus?.lastError && <p className="tiny">Info: {waStatus.lastError}</p>}
         {waStatus?.connected && <button className="danger" onClick={disconnectWa}>Putuskan WhatsApp</button>}
       </section>
@@ -192,8 +209,10 @@ export default function Home() {
         <p className="tiny"><b>Kecepatan kirim</b></p>
         <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={running}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
         <p className="tiny">Slow: aman, sekitar 2 pesan/menit. Medium: sekitar 5 pesan/menit. Fast: sekitar 8 pesan/menit (risiko akun dibatasi WhatsApp lebih tinggi).</p>
-        {running ? <button className="danger" onClick={()=>stopCampaign(current.id)}>Hentikan</button> : <button className="primary" disabled={busy || !current || !waStatus?.connected || doneThis} onClick={()=>startCampaign(current.id)}>▶ Mulai</button>}
-        {!waStatus?.connected && <p className="tiny">Hubungkan WhatsApp dulu untuk memulai.</p>}
+        {running ? <button className="danger" onClick={()=>stopCampaign(current.id)}>Hentikan</button> : <button className="primary" disabled={busy || !current || !devices.some((d: any) => d.connected) || doneThis} onClick={()=>startCampaign(current.id)}>▶ Mulai</button>}
+        {!devices.some((d: any) => d.connected) && <p className="tiny">Hubungkan minimal 1 perangkat WhatsApp dulu untuk memulai.</p>}
+        {running && <button className="ghost" disabled={busy} onClick={sendNow}>Kirim sekarang (tes)</button>}
+        <p className="tiny">Kecepatan dihitung per perangkat: makin banyak perangkat online, makin banyak pesan per menit.</p>
       </section>
 
       <section className="tiles">
@@ -216,8 +235,8 @@ export default function Home() {
         <p className="tiny">Tarif saat ini: {rp(settings?.price_per_message || 0)} per pesan sukses.</p>
         <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Tarif baru, contoh 50" inputMode="numeric" />
         <button className="primary" onClick={savePrice}>Simpan tarif</button>
-        <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Perangkat</th><th>Saldo</th><th></th></tr></thead><tbody>
-          {(overview?.users || []).map((u: any) => <tr key={u.id}><td>{u.name || u.email}<br /><small>{u.email}</small></td><td>{u.online ? "🟢 Online" : "⚪ Offline"}</td><td>{rp(u.balance)}<br /><small>{u.success_count} pesan</small></td><td><button className="ghost" onClick={() => payout(u.id)} disabled={!u.balance}>Reset saldo</button></td></tr>)}
+        <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Perangkat</th><th>Maks</th><th>Saldo</th><th></th></tr></thead><tbody>
+          {(overview?.users || []).map((u: any) => <tr key={u.id}><td>{u.name || u.email}<br /><small>{u.email}</small></td><td>🟢 {u.on} / ⚪ {u.linked - u.on}</td><td><input type="number" min={1} max={9} defaultValue={u.max_devices} onBlur={(e) => Number(e.target.value) !== u.max_devices && setLimit(u.id, e.target.value)} style={{width:64}} /></td><td>{rp(u.balance)}<br /><small>{u.success_count} pesan</small></td><td><button className="ghost" onClick={() => payout(u.id)} disabled={!u.balance}>Reset saldo</button></td></tr>)}
         </tbody></table></div>
       </section>}
 
