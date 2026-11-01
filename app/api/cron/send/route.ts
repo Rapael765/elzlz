@@ -1,55 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 const PER_RUN: Record<string, number> = { slow: 2, medium: 5, fast: 8 };
 
 export async function GET(request: NextRequest) {
-  const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!process.env.BAILEYS_API_URL || !process.env.BAILEYS_API_KEY) {
-    return NextResponse.json({ error: "Backend Baileys belum dikonfigurasi." }, { status: 503 });
-  }
+  const secret = process.env.CRON_SECRET;
+  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const base = process.env.BAILEYS_API_URL?.replace(/\/$/, "");
+  const key = process.env.BAILEYS_API_KEY;
+  if (!base || !key) return NextResponse.json({ error: "Backend Baileys belum dikonfigurasi." }, { status: 503 });
   const db = createServerClient();
-  const { data: campaigns } = await db.from("campaigns").select("*").eq("status", "running").limit(3);
-  if (!campaigns?.length) return NextResponse.json({ message: "Tidak ada campaign aktif." });
-
+  const { data: runs } = await db.from("user_runs").select("*").eq("status", "running").limit(30);
+  if (!runs?.length) return NextResponse.json({ message: "Tidak ada campaign aktif." });
+  const { data: st } = await db.from("app_settings").select("price_per_message").eq("id", 1).maybeSingle();
+  const price = st?.price_per_message || 0;
   let sent = 0, failed = 0;
-  for (const campaign of campaigns) {
-    const { data: allContacts } = await db.from("contacts").select("*")
-      .eq("opted_in", true).is("unsubscribed_at", null).order("created_at", {ascending:true}).limit(5000);
-    const { data: previousLogs } = await db.from("message_logs").select("contact_id").eq("campaign_id", campaign.id);
-    const alreadyProcessed = new Set((previousLogs || []).map((row: any) => row.contact_id));
-    const contacts = (allContacts || []).filter((contact: any) => !alreadyProcessed.has(contact.id)).slice(0, PER_RUN[campaign.speed_mode] || 2);
-    if (!contacts.length) {
-      await db.from("campaigns").update({status:"completed", completed_at:new Date().toISOString()}).eq("id", campaign.id);
-      continue;
-    }
-    for (const contact of contacts) {
-      // Pesan dikirim melalui backend Baileys di server Pterodactyl.
-      // Kontak harus opt-in; backend juga menerapkan jeda antar-pesan dan daftar opt-out.
+  await Promise.all(runs.map(async (run: any) => {
+    const stop = (status: string) => db.from("user_runs").update({ status, updated_at: new Date().toISOString() }).eq("user_id", run.user_id);
+    const { data: campaign } = await db.from("campaigns").select("*").eq("id", run.campaign_id).maybeSingle();
+    if (!campaign) { await stop("stopped"); return; }
+    const { data: contacts } = await db.from("contacts").select("*").eq("opted_in", true).is("unsubscribed_at", null).order("created_at", { ascending: true }).limit(5000);
+    const { data: logs } = await db.from("message_logs").select("contact_id").eq("campaign_id", campaign.id);
+    const done = new Set((logs || []).map((l: any) => l.contact_id));
+    const todo = (contacts || []).filter((c: any) => !done.has(c.id)).slice(0, PER_RUN[run.speed_mode] || 2);
+    if (!todo.length) { await stop("completed"); return; }
+    for (const contact of todo) {
+      const { data: claim, error: claimErr } = await db.from("message_logs").insert({ campaign_id: campaign.id, contact_id: contact.id, phone: contact.phone, status: "pending", sent_by: run.user_id }).select("id").single();
+      if (claimErr || !claim) continue; // sudah diambil perangkat lain
       try {
-        const response = await fetch(`${process.env.BAILEYS_API_URL?.replace(/\/$/, "")}/send`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.BAILEYS_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: contact.phone, text: campaign.template_name }),
-          signal: AbortSignal.timeout(20000)
-        });
-        const payload = await response.json().catch(() => ({}));
-        const ok = response.ok;
-        await db.from("message_logs").insert({
-          campaign_id: campaign.id, contact_id: contact.id, phone: contact.phone,
-          status: ok ? "sent" : "failed", provider_message_id: payload?.messageId || null,
-          error: ok ? null : String(payload?.error || `Backend error ${response.status}`).slice(0,900)
-        });
-        if (ok) sent++; else failed++;
+        const r = await fetch(`${base}/send`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "x-user-id": run.user_id }, body: JSON.stringify({ phone: contact.phone, text: campaign.template_name }), signal: AbortSignal.timeout(25000) });
+        const payload: any = await r.json().catch(() => ({}));
+        if (r.ok) {
+          await db.from("message_logs").update({ status: "sent", provider_message_id: payload?.messageId || null, reward: price }).eq("id", claim.id);
+          await db.rpc("credit_user", { uid: run.user_id, amount: price });
+          sent++;
+        } else if (r.status === 409) {
+          await db.from("message_logs").delete().eq("id", claim.id); // perangkat offline: kontak tidak dihitung
+          await stop("stopped");
+          break;
+        } else {
+          await db.from("message_logs").update({ status: "failed", error: String(payload?.error || `Backend error ${r.status}`).slice(0, 900) }).eq("id", claim.id);
+          failed++;
+        }
       } catch (e: any) {
-        await db.from("message_logs").insert({campaign_id:campaign.id,contact_id:contact.id,phone:contact.phone,status:"failed",error:String(e).slice(0,900)});
+        await db.from("message_logs").update({ status: "failed", error: String(e).slice(0, 900) }).eq("id", claim.id);
         failed++;
       }
     }
-  }
+  }));
   return NextResponse.json({ sent, failed });
 }
