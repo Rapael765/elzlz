@@ -9,3 +9,9 @@ export async function getUser(request: NextRequest) {
   if (error || !data.user) return null;
   return data.user;
 }
+
+export async function isAdminUser(userId: string) {
+  const db = createServerClient();
+  const { data } = await db.from("profiles").select("role").eq("id", userId).maybeSingle();
+  return data?.role === "admin";
+}
