@@ -3,6 +3,7 @@ import { getUser } from '@/lib/auth';
 import { proxyBaileys } from '@/lib/baileys-proxy';
 export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
-  if (!await getUser(request)) return Response.json({ error: 'Silakan login.' }, { status: 401 });
-  return proxyBaileys(request, 'status');
+  const user = await getUser(request);
+  if (!user) return Response.json({ error: 'Silakan login.' }, { status: 401 });
+  return proxyBaileys(request, 'status', 'GET', user.id);
 }
