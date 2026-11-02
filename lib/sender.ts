@@ -18,16 +18,19 @@ export async function processRun(db: any, run: any, price: number) {
   } catch { out.note = "Server Pterodactyl tidak dapat dijangkau dari Vercel."; return out; }
   if (!slots.length) { await setStatus("stopped"); out.note = "Tidak ada perangkat online, pengiriman dihentikan."; return out; }
 
-  const { data: contacts } = await db.from("contacts").select("*").eq("opted_in", true).is("unsubscribed_at", null).order("created_at", { ascending: true }).limit(5000);
-  const { data: logs } = await db.from("message_logs").select("contact_id").eq("campaign_id", campaign.id);
-  const done = new Set((logs || []).map((l: any) => l.contact_id));
-  const todo = (contacts || []).filter((c: any) => !done.has(c.id)).slice(0, (PER_RUN[run.speed_mode] || 2) * slots.length);
-  if (!todo.length) { await setStatus("completed"); out.note = "Semua kontak sudah diproses."; return out; }
+  // Ambil nomor yang belum pernah dipakai akun mana pun; langsung ditandai terpakai (tidak muncul di akun lain).
+  const { data: claimed, error: claimError } = await db.rpc("claim_contacts", { uid: run.user_id, n: (PER_RUN[run.speed_mode] || 2) * slots.length });
+  if (claimError) { out.note = `Database: ${claimError.message}`; return out; }
+  const todo: any[] = claimed || [];
+  if (!todo.length) { await setStatus("completed"); out.note = "Database habis, tidak ada nomor baru."; return out; }
+  const release = (ids: string[]) => ids.length ? db.from("contacts").update({ used_at: null, used_by: null }).in("id", ids) : null;
 
   await Promise.all(slots.map(async (slot, i) => {
-    for (const contact of todo.filter((_: any, j: number) => j % slots.length === i)) {
-      const { data: claim, error: claimErr } = await db.from("message_logs").insert({ campaign_id: campaign.id, contact_id: contact.id, phone: contact.phone, status: "pending", sent_by: run.user_id }).select("id").single();
-      if (claimErr || !claim) { if (claimErr && claimErr.code !== "23505") out.note = `Database: ${claimErr.message}`; continue; }
+    const mine = todo.filter((_: any, j: number) => j % slots.length === i);
+    for (let k = 0; k < mine.length; k++) {
+      const contact = mine[k];
+      const { data: claim, error: logErr } = await db.from("message_logs").insert({ campaign_id: campaign.id, contact_id: contact.id, phone: contact.phone, status: "pending", sent_by: run.user_id }).select("id").single();
+      if (logErr || !claim) { out.note = `Database: ${logErr?.message || "gagal mencatat"}`; await release([contact.id]); continue; }
       try {
         const r = await fetch(`${base}/send`, { method: "POST", headers: H(slot), body: JSON.stringify({ phone: contact.phone, text: campaign.template_name }), signal: AbortSignal.timeout(25000) });
         const payload: any = await r.json().catch(() => ({}));
@@ -36,7 +39,8 @@ export async function processRun(db: any, run: any, price: number) {
           await db.rpc("credit_user", { uid: run.user_id, amount: price });
           out.sent++;
         } else if (r.status === 409) {
-          await db.from("message_logs").delete().eq("id", claim.id); // perangkat offline: tidak dihitung
+          await db.from("message_logs").delete().eq("id", claim.id); // perangkat offline: nomor dikembalikan ke database
+          await release(mine.slice(k).map((c: any) => c.id));
           out.note = `Perangkat ${slot} offline.`;
           break;
         } else {
