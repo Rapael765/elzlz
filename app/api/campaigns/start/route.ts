@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { getUser, isAdminUser } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
@@ -17,15 +17,17 @@ export async function POST(request: NextRequest) {
   } catch { return NextResponse.json({ error: "Backend Baileys tidak dapat dijangkau." }, { status: 502 }); }
   if (!online) return NextResponse.json({ error: "Hubungkan minimal 1 perangkat WhatsApp dulu." }, { status: 409 });
   const db = createServerClient();
-  const { data: campaign } = await db.from("campaigns").select("id").eq("id", campaignId).maybeSingle();
-  if (!campaign) return NextResponse.json({ error: "Campaign tidak ditemukan." }, { status: 404 });
+  let campaign: any = null;
+  if (campaignId && (await isAdminUser(user.id))) campaign = (await db.from("campaigns").select("id").eq("id", campaignId).maybeSingle()).data;
+  else campaign = (await db.from("campaigns").select("id").order("created_at", { ascending: false }).limit(1).maybeSingle()).data;
+  if (!campaign) return NextResponse.json({ error: "Belum ada campaign dari admin." }, { status: 404 });
   const { data: contacts } = await db.from("contacts").select("id").eq("opted_in", true).is("unsubscribed_at", null).limit(5000);
-  const { data: logs } = await db.from("message_logs").select("contact_id").eq("campaign_id", campaignId);
+  const { data: logs } = await db.from("message_logs").select("contact_id").eq("campaign_id", campaign.id);
   const done = new Set((logs || []).map((l: any) => l.contact_id));
   const remaining = (contacts || []).filter((c: any) => !done.has(c.id)).length;
-  if (!remaining) return NextResponse.json({ error: "Semua kontak sudah diproses untuk campaign ini. Minta admin membuat campaign baru." }, { status: 409 });
+  if (!remaining) return NextResponse.json({ error: "Belum ada target baru untuk dikirim. Tunggu admin menambah campaign atau database." }, { status: 409 });
   const now = new Date().toISOString();
-  const { error } = await db.from("user_runs").upsert({ user_id: user.id, campaign_id: campaignId, status: "running", speed_mode: mode, started_at: now, updated_at: now }, { onConflict: "user_id" });
+  const { error } = await db.from("user_runs").upsert({ user_id: user.id, campaign_id: campaign.id, status: "running", speed_mode: mode, started_at: now, updated_at: now }, { onConflict: "user_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ message: `Pengiriman dimulai (${mode}). Perangkat online: ${online}. Sisa target: ${remaining} kontak.` });
+  return NextResponse.json({ message: `Pengiriman dimulai (${mode}). Perangkat online: ${online}.` });
 }
