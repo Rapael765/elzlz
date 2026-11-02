@@ -21,10 +21,7 @@ export async function POST(request: NextRequest) {
   if (campaignId && (await isAdminUser(user.id))) campaign = (await db.from("campaigns").select("id").eq("id", campaignId).maybeSingle()).data;
   else campaign = (await db.from("campaigns").select("id").order("created_at", { ascending: false }).limit(1).maybeSingle()).data;
   if (!campaign) return NextResponse.json({ error: "Belum ada campaign dari admin." }, { status: 404 });
-  const { data: contacts } = await db.from("contacts").select("id").eq("opted_in", true).is("unsubscribed_at", null).limit(5000);
-  const { data: logs } = await db.from("message_logs").select("contact_id").eq("campaign_id", campaign.id);
-  const done = new Set((logs || []).map((l: any) => l.contact_id));
-  const remaining = (contacts || []).filter((c: any) => !done.has(c.id)).length;
+  const { count: remaining } = await db.from("contacts").select("id", { count: "exact", head: true }).eq("opted_in", true).is("unsubscribed_at", null).is("used_at", null);
   if (!remaining) return NextResponse.json({ error: "Belum ada target baru untuk dikirim. Tunggu admin menambah campaign atau database." }, { status: 409 });
   const now = new Date().toISOString();
   const { error } = await db.from("user_runs").upsert({ user_id: user.id, campaign_id: campaign.id, status: "running", speed_mode: mode, started_at: now, updated_at: now }, { onConflict: "user_id" });
