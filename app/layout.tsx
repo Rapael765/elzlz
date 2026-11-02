@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "El Shop Manager",
+  title: "setanwawa",
   description: "Dashboard pengelolaan toko dan promosi WhatsApp berbasis persetujuan pelanggan."
 };
 

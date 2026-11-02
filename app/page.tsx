@@ -160,8 +160,8 @@ export default function Home() {
 
   if (!session) return <main className="auth-shell">
     <section className="auth-card">
-      <div className="brand-mark">ES</div><p className="eyebrow">TOKO ONLINE • PROMOTION DESK</p>
-      <h1>El Shop Manager</h1><p className="muted">Kelola pelanggan dan campaign toko dari satu dashboard.</p>
+      <div className="brand-mark">SW</div><p className="eyebrow">TOKO ONLINE • PROMOTION DESK</p>
+      <h1>setanwawa</h1><p className="muted">Kelola pelanggan dan campaign toko dari satu dashboard.</p>
       {mode === "signup" && <label>Nama toko / nama kamu<input value={name} onChange={e=>setName(e.target.value)} placeholder="Nama" /></label>}
       <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@contoh.com" /></label>
       <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimal 6 karakter" /></label>
@@ -176,8 +176,8 @@ export default function Home() {
   const isAdmin = profile?.role === "admin";
   const current = campaigns[0];
   const running = run?.status === "running";
-  const doneThis = run?.status === "completed" && run?.campaign_id === current?.id;
-  const statusLabel = !current ? "Belum ada" : running ? "● Berjalan" : doneThis ? "Selesai" : run?.status === "stopped" ? "Dihentikan" : "Siap";
+  const doneThis = false;
+  const statusLabel = isAdmin && !current ? "Belum ada" : running ? "● Berjalan" : doneThis ? "Selesai" : run?.status === "stopped" ? "Dihentikan" : "Siap";
   const rp = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
   const onlineN = isAdmin ? (overview?.online ?? 0) : devices.filter((d: any) => d.connected).length;
   const offlineN = isAdmin ? (overview?.offline ?? 0) : devices.filter((d: any) => d.registered && !d.connected).length;
@@ -186,7 +186,7 @@ export default function Home() {
   const successN = isAdmin ? (overview?.successTotal ?? 0) : (profile?.success_count ?? 0);
 
   return <main className="dashboard">
-    <header className="topbar"><div className="brand"><span className="brand-mark small">ES</span><div><b>El Shop Manager</b><small>Promotion dashboard</small></div></div>
+    <header className="topbar"><div className="brand"><span className="brand-mark small">SW</span><div><b>setanwawa</b><small>Promotion dashboard</small></div></div>
       <div className="user-area"><span>{session.user.email}</span><button className="ghost" onClick={signOut}>Keluar</button></div>
     </header>
     <div className="content">
@@ -205,11 +205,11 @@ export default function Home() {
 
       <section className="panel run-panel">
         <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
-        {current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Admin belum membuat campaign.</p>}
+        {isAdmin ? (current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Belum ada campaign. Buat dulu di bawah.</p>) : <p className="muted">Isi pesan diatur oleh admin. Pilih kecepatan lalu tekan Mulai.</p>}
         <p className="tiny"><b>Kecepatan kirim</b></p>
         <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={running}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
         <p className="tiny">Slow: aman, sekitar 2 pesan/menit. Medium: sekitar 5 pesan/menit. Fast: sekitar 8 pesan/menit (risiko akun dibatasi WhatsApp lebih tinggi).</p>
-        {running ? <button className="danger" onClick={()=>stopCampaign(current.id)}>Hentikan</button> : <button className="primary" disabled={busy || !current || !devices.some((d: any) => d.connected) || doneThis} onClick={()=>startCampaign(current.id)}>▶ Mulai</button>}
+        {running ? <button className="danger" onClick={()=>stopCampaign("")}>Hentikan</button> : <button className="primary" disabled={busy || (isAdmin && !current) || !devices.some((d: any) => d.connected)} onClick={()=>startCampaign(current?.id || "")}>▶ Mulai</button>}
         {!devices.some((d: any) => d.connected) && <p className="tiny">Hubungkan minimal 1 perangkat WhatsApp dulu untuk memulai.</p>}
         {running && <button className="ghost" disabled={busy} onClick={sendNow}>Kirim sekarang (tes)</button>}
         <p className="tiny">Kecepatan dihitung per perangkat: makin banyak perangkat online, makin banyak pesan per menit.</p>
@@ -272,7 +272,7 @@ export default function Home() {
         </tbody></table></div>
       </section>}
       {isAdmin && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
-      <footer>El Shop Manager · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
+      <footer>setanwawa · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
     </div>
   </main>;
 }
