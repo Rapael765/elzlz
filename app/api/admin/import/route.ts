@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     else if (d.startsWith("8")) d = "62" + d;
     if (/^\d{8,15}$/.test(d)) valid.add(d); else invalid++;
   }
-  const rows = [...valid].map((p) => ({ name: p, phone: p, opted_in: true, consent_source: "impor txt (dikonfirmasi admin)" }));
+  const rows = Array.from(valid).map((p) => ({ name: p, phone: p, opted_in: true, consent_source: "impor txt (dikonfirmasi admin)" }));
   const db = createServerClient();
   let inserted = 0;
   for (let i = 0; i < rows.length; i += 1000) {
