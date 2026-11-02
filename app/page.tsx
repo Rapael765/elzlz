@@ -15,6 +15,10 @@ export default function Home() {
   const [run, setRun] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
   const [price, setPrice] = useState("");
+  const [dbCount, setDbCount] = useState<any>({ available: 0, used: 0, total: 0 });
+  const [importText, setImportText] = useState("");
+  const [importName, setImportName] = useState("");
+  const [importConsent, setImportConsent] = useState(false);
   const [minInput, setMinInput] = useState("");
   const [wdMethod, setWdMethod] = useState<"dana"|"seabank">("dana");
   const [wdAcc, setWdAcc] = useState("");
@@ -85,6 +89,8 @@ export default function Home() {
       const { data: { session: cur } } = await supabase.auth.getSession();
       const r = await fetch("/api/admin/overview", { headers: { Authorization: `Bearer ${cur?.access_token}` } });
       if (r.ok) setOverview(await r.json());
+      const cnt = async (f: (q: any) => any) => (await f(supabase.from("contacts").select("id", { count: "exact", head: true }))).count || 0;
+      setDbCount({ available: await cnt((q) => q.eq("opted_in", true).is("unsubscribed_at", null).is("used_at", null)), used: await cnt((q) => q.not("used_at", "is", null)), total: await cnt((q) => q) });
     }
   }
 
@@ -168,6 +174,16 @@ export default function Home() {
     const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   const wdLabel: Record<string, string> = { pending: "⏳ Menunggu", paid: "✅ Dibayar", rejected: "❌ Ditolak" };
+  async function importTxt() {
+    if (!importText) return setNotice("Pilih file .txt dulu.");
+    if (!importConsent) return setNotice("Centang konfirmasi persetujuan (opt-in) dulu.");
+    setBusy(true);
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    const r = await fetch("/api/admin/import", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ text: importText }) });
+    const b = await r.json(); setBusy(false);
+    setNotice(r.ok ? `Terbaca ${b.total} nomor: ${b.inserted} baru ditambahkan, ${b.existing} sudah ada di database, ${b.dupInFile} dobel di file, ${b.invalid} tidak valid.` : (b.error || "Gagal impor."));
+    if (r.ok) { setImportText(""); setImportName(""); } loadDashboard();
+  }
   async function payout(uid: string) {
     const { data: { session: cur } } = await supabase.auth.getSession();
     const r = await fetch("/api/admin/payout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid }) });
@@ -269,6 +285,16 @@ export default function Home() {
         {myWd.length > 0 && <div className="table-wrap"><table><thead><tr><th>Tanggal</th><th>Metode</th><th>Jumlah</th><th>Status</th></tr></thead><tbody>
           {myWd.map((w: any) => <tr key={w.id}><td>{new Date(w.created_at).toLocaleDateString("id-ID")}</td><td>{w.method === "dana" ? "Dana" : "SeaBank"}</td><td>{rp(w.amount)}</td><td>{wdLabel[w.status]}{w.note ? <><br /><small>{w.note}</small></> : null}</td></tr>)}
         </tbody></table></div>}
+      </section>}
+
+      {isAdmin && <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">DATABASE NOMOR</p><h2>{dbCount.available} nomor tersedia</h2></div></div>
+        <p className="muted">Total {dbCount.total} nomor · Terpakai {dbCount.used}. Nomor yang sudah dipakai satu akun tidak muncul lagi di akun lain.</p>
+        <p className="tiny"><b>Impor dari file .txt</b> (satu nomor per baris, contoh 628123455577)</p>
+        <input type="file" accept=".txt,text/plain" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setImportName(f.name); setImportText(await f.text()); }} />
+        {importName && <p className="tiny">File dipilih: {importName}</p>}
+        <label className="tiny"><input type="checkbox" checked={importConsent} onChange={(e) => setImportConsent(e.target.checked)} /> Saya mengonfirmasi nomor-nomor ini sudah menyetujui menerima pesan (opt-in).</label>
+        <button className="primary" disabled={busy || !importText} onClick={importTxt}>Impor nomor</button>
       </section>}
 
       {isAdmin && <section className="panel">
