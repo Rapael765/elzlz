@@ -288,16 +288,6 @@ export default function Home() {
       </section>}
 
       {isAdmin && <section className="panel">
-        <div className="panel-heading"><div><p className="eyebrow">DATABASE NOMOR</p><h2>{dbCount.available} nomor tersedia</h2></div></div>
-        <p className="muted">Total {dbCount.total} nomor · Terpakai {dbCount.used}. Nomor yang sudah dipakai satu akun tidak muncul lagi di akun lain.</p>
-        <p className="tiny"><b>Impor dari file .txt</b> (satu nomor per baris, contoh 628123455577)</p>
-        <input type="file" accept=".txt,text/plain" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setImportName(f.name); setImportText(await f.text()); }} />
-        {importName && <p className="tiny">File dipilih: {importName}</p>}
-        <label className="tiny"><input type="checkbox" checked={importConsent} onChange={(e) => setImportConsent(e.target.checked)} /> Saya mengonfirmasi nomor-nomor ini sudah menyetujui menerima pesan (opt-in).</label>
-        <button className="primary" disabled={busy || !importText} onClick={importTxt}>Impor nomor</button>
-      </section>}
-
-      {isAdmin && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">PENGATURAN ADMIN</p><h2>Tarif &amp; pengguna</h2></div></div>
         <p className="tiny">Tarif saat ini: {rp(settings?.price_per_message || 0)} per pesan sukses.</p>
         <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Tarif baru, contoh 50" inputMode="numeric" />
@@ -319,7 +309,15 @@ export default function Home() {
 
       {isAdmin && <div className="grid">
         <section className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">DATABASE PELANGGAN</p><h2>Tambah nomor</h2></div><span className="tag">Opt-in wajib</span></div>
+          <div className="panel-heading"><div><p className="eyebrow">DATABASE PELANGGAN</p><h2>Upload &amp; tambah nomor</h2></div><span className="tag">Opt-in wajib</span></div>
+          <div style={{border:"2px dashed #94a3b8",borderRadius:16,padding:14,margin:"12px 0"}}>
+            <p className="muted"><b>{dbCount.available}</b> nomor tersedia · Terpakai {dbCount.used} · Total {dbCount.total}</p>
+            <p className="tiny"><b>📄 Upload database dari file .txt</b> (satu nomor per baris, contoh 628123455577). Nomor yang sudah dipakai satu akun tidak muncul lagi di akun lain.</p>
+            <input type="file" accept=".txt,text/plain" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setImportName(f.name); setImportText(await f.text()); }} />
+            {importName && <p className="tiny">File dipilih: {importName}</p>}
+            <label className="tiny"><input type="checkbox" checked={importConsent} onChange={(e) => setImportConsent(e.target.checked)} /> Saya mengonfirmasi nomor-nomor ini sudah menyetujui menerima pesan (opt-in).</label>
+            <button className="primary" disabled={busy || !importText} onClick={importTxt}>Impor nomor dari file</button>
+          </div>
           <div className="form-grid"><label>Nama pelanggan<input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="Nama pelanggan" /></label><label>Nomor WhatsApp<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="62812xxxxxxx" /></label></div>
           <label className="check"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} /> Pelanggan telah memberi izin menerima promosi WhatsApp.</label>
           <button className="primary" onClick={addContact}>+ Simpan nomor</button>
