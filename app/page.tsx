@@ -15,6 +15,12 @@ export default function Home() {
   const [run, setRun] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
   const [price, setPrice] = useState("");
+  const [minInput, setMinInput] = useState("");
+  const [wdMethod, setWdMethod] = useState<"dana"|"seabank">("dana");
+  const [wdAcc, setWdAcc] = useState("");
+  const [wdName, setWdName] = useState("");
+  const [wdAmount, setWdAmount] = useState("");
+  const [myWd, setMyWd] = useState<any[]>([]);
   const [mode, setMode] = useState<"login"|"signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,6 +80,7 @@ export default function Home() {
     setContacts(c || []); setCampaigns(ca || []); setLogs(l || []);
     const { data: st } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle(); setSettings(st);
     const { data: ru } = await supabase.from("user_runs").select("*").eq("user_id", session.user.id).maybeSingle(); setRun(ru);
+    if (p?.role !== "admin") { const { data: wd } = await supabase.from("withdrawals").select("*").order("created_at", { ascending: false }).limit(10); setMyWd(wd || []); }
     if (p?.role === "admin") {
       const { data: { session: cur } } = await supabase.auth.getSession();
       const r = await fetch("/api/admin/overview", { headers: { Authorization: `Bearer ${cur?.access_token}` } });
@@ -141,6 +148,26 @@ export default function Home() {
     const { error } = await supabase.from("app_settings").update({ price_per_message: v }).eq("id", 1);
     setNotice(error ? error.message : "Tarif per pesan disimpan."); setPrice(""); loadDashboard();
   }
+  async function saveMin() {
+    const v = parseInt(minInput, 10);
+    if (isNaN(v) || v < 0) return setNotice("Isi minimal penarikan dengan angka (Rp).");
+    const { error } = await supabase.from("app_settings").update({ min_withdraw: v }).eq("id", 1);
+    setNotice(error ? error.message : "Minimal penarikan disimpan."); setMinInput(""); loadDashboard();
+  }
+  async function submitWithdraw() {
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    setBusy(true);
+    const r = await fetch("/api/withdraw", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ amount: Number(wdAmount), method: wdMethod, accountNumber: wdAcc, accountName: wdName }) });
+    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai.");
+    if (r.ok) setWdAmount(""); loadDashboard();
+  }
+  async function processWd(id: string, action: "paid" | "rejected") {
+    const note = action === "rejected" ? (window.prompt("Alasan penolakan (boleh kosong):") || "") : "";
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    const r = await fetch("/api/admin/withdrawals", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ id, action, note }) });
+    const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+  }
+  const wdLabel: Record<string, string> = { pending: "⏳ Menunggu", paid: "✅ Dibayar", rejected: "❌ Ditolak" };
   async function payout(uid: string) {
     const { data: { session: cur } } = await supabase.auth.getSession();
     const r = await fetch("/api/admin/payout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid }) });
@@ -230,13 +257,37 @@ export default function Home() {
         </article>
       </section>
 
+      {!isAdmin && <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">TARIK SALDO</p><h2>Penarikan dana</h2></div></div>
+        <p className="muted">Saldo: <b>{rp(profile?.balance ?? 0)}</b> · Minimal penarikan: <b>{rp(settings?.min_withdraw ?? 0)}</b></p>
+        <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["dana","seabank"] as const).map(m => <button key={m} className={wdMethod === m ? "primary compact" : "ghost"} onClick={() => setWdMethod(m)}>{m === "dana" ? "Dana" : "SeaBank"}</button>)}</div>
+        <input value={wdAcc} onChange={(e) => setWdAcc(e.target.value)} placeholder={wdMethod === "dana" ? "Nomor Dana, contoh 0812xxxx" : "Nomor rekening SeaBank"} inputMode="numeric" />
+        <input value={wdName} onChange={(e) => setWdName(e.target.value)} placeholder="Nama pemilik akun" />
+        <input value={wdAmount} onChange={(e) => setWdAmount(e.target.value)} placeholder="Jumlah penarikan (Rp)" inputMode="numeric" />
+        <button className="primary" disabled={busy || (profile?.balance ?? 0) < (settings?.min_withdraw ?? 0)} onClick={submitWithdraw}>Ajukan penarikan</button>
+        {(profile?.balance ?? 0) < (settings?.min_withdraw ?? 0) && <p className="tiny">Saldo belum mencapai minimal penarikan.</p>}
+        {myWd.length > 0 && <div className="table-wrap"><table><thead><tr><th>Tanggal</th><th>Metode</th><th>Jumlah</th><th>Status</th></tr></thead><tbody>
+          {myWd.map((w: any) => <tr key={w.id}><td>{new Date(w.created_at).toLocaleDateString("id-ID")}</td><td>{w.method === "dana" ? "Dana" : "SeaBank"}</td><td>{rp(w.amount)}</td><td>{wdLabel[w.status]}{w.note ? <><br /><small>{w.note}</small></> : null}</td></tr>)}
+        </tbody></table></div>}
+      </section>}
+
       {isAdmin && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">PENGATURAN ADMIN</p><h2>Tarif &amp; pengguna</h2></div></div>
         <p className="tiny">Tarif saat ini: {rp(settings?.price_per_message || 0)} per pesan sukses.</p>
         <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Tarif baru, contoh 50" inputMode="numeric" />
         <button className="primary" onClick={savePrice}>Simpan tarif</button>
+        <p className="tiny">Minimal penarikan saat ini: {rp(settings?.min_withdraw ?? 0)}.</p>
+        <input value={minInput} onChange={(e) => setMinInput(e.target.value)} placeholder="Minimal penarikan baru, contoh 10000" inputMode="numeric" />
+        <button className="primary" onClick={saveMin}>Simpan minimal penarikan</button>
         <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Perangkat</th><th>Maks</th><th>Saldo</th><th></th></tr></thead><tbody>
           {(overview?.users || []).map((u: any) => <tr key={u.id}><td>{u.name || u.email}<br /><small>{u.email}</small></td><td>🟢 {u.on} / ⚪ {u.linked - u.on}</td><td><input type="number" min={1} max={9} defaultValue={u.max_devices} onBlur={(e) => Number(e.target.value) !== u.max_devices && setLimit(u.id, e.target.value)} style={{width:64}} /></td><td>{rp(u.balance)}<br /><small>{u.success_count} pesan</small></td><td><button className="ghost" onClick={() => payout(u.id)} disabled={!u.balance}>Reset saldo</button></td></tr>)}
+        </tbody></table></div>
+      </section>}
+
+      {isAdmin && <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">PERMINTAAN PENARIKAN</p><h2>{(overview?.withdrawals || []).filter((w: any) => w.status === "pending").length} menunggu</h2></div></div>
+        <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Tujuan</th><th>Jumlah</th><th>Status</th><th></th></tr></thead><tbody>
+          {(overview?.withdrawals || []).map((w: any) => <tr key={w.id}><td>{w.name || w.email}<br /><small>{new Date(w.created_at).toLocaleString("id-ID")}</small></td><td>{w.method === "dana" ? "Dana" : "SeaBank"}<br />{w.account_number}<br /><small>{w.account_name}</small></td><td>{rp(w.amount)}</td><td>{wdLabel[w.status]}</td><td>{w.status === "pending" && <><button className="primary compact" onClick={() => processWd(w.id, "paid")}>Sudah dibayar</button> <button className="ghost" onClick={() => processWd(w.id, "rejected")}>Tolak</button></>}</td></tr>)}
         </tbody></table></div>
       </section>}
 
