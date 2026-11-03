@@ -11,3 +11,8 @@
 .sub strong{font-size:20px}
 .ico{flex:none;width:50px;height:50px;border-radius:16px;display:grid;place-items:center;font-size:24px}
 .ico.ok{background:#e2f6e9}.ico.bad{background:#fbe9e9}.ico.safe{background:#d9f0e6}.ico.warn{background:#fdf0dc}.ico.info{background:#e3edfd}
+
+.tabbar{display:flex;gap:8px;overflow-x:auto;padding:12px 0;margin:6px 0 4px;-webkit-overflow-scrolling:touch}
+.tab{flex:none;border:1px solid #e2e5ef;background:#fff;color:#475569;font-weight:700;font-size:15px;padding:11px 16px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.tab.on{background:linear-gradient(135deg,#4f6bff,#3347d6);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(79,107,255,.35)}
+.tab .badge{display:inline-block;margin-left:6px;min-width:20px;padding:1px 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:12px}

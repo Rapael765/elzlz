@@ -14,6 +14,7 @@ export default function Home() {
   const [settings, setSettings] = useState<any>(null);
   const [run, setRun] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
+  const [tab, setTab] = useState("beranda");
   const [price, setPrice] = useState("");
   const [dbCount, setDbCount] = useState<any>({ available: 0, used: 0, total: 0 });
   const [contactFilter, setContactFilter] = useState("");
@@ -236,6 +237,10 @@ export default function Home() {
   const earnedN = isAdmin ? (overview?.earnedTotal ?? 0) : (profile?.earned ?? 0);
   const successN = isAdmin ? (overview?.successTotal ?? 0) : (profile?.success_count ?? 0);
 
+  const pendingWd = (overview?.withdrawals || []).filter((w: any) => w.status === "pending").length;
+  const tabs: { id: string; label: string; icon: string; badge?: number }[] = isAdmin
+    ? [{ id: "beranda", label: "Beranda", icon: "🏠" }, { id: "perangkat", label: "Perangkat", icon: "📱" }, { id: "database", label: "Database", icon: "🗂️" }, { id: "campaign", label: "Campaign", icon: "📣" }, { id: "pengguna", label: "Pengguna", icon: "👥" }, { id: "penarikan", label: "Penarikan", icon: "💸", badge: pendingWd }, { id: "riwayat", label: "Riwayat", icon: "🧾" }]
+    : [{ id: "beranda", label: "Beranda", icon: "🏠" }, { id: "perangkat", label: "Perangkat", icon: "📱" }, { id: "tarik", label: "Tarik saldo", icon: "💸" }];
   return <main className="dashboard">
     <header className="topbar"><div className="brand"><span className="brand-mark small">SW</span><div><b>setanwawa</b><small>Promotion dashboard</small></div></div>
       <div className="user-area"><span>{session.user.email}</span><button className="ghost" onClick={signOut}>Keluar</button></div>
@@ -243,7 +248,8 @@ export default function Home() {
     <div className="content">
       <div className="welcome"><div><p className="eyebrow">DASHBOARD {isAdmin ? "ADMIN" : "TOKO"}</p><h1>Halo, {profile?.full_name || "Pemilik Toko"} 👋</h1><p className="muted">Pantau pelanggan dan promosi toko kamu.</p></div><span className="status-pill">● Sistem siap</span></div>
       {notice && <div className="notice-banner">{notice}</div>}
-      <section className="panel wa-panel">
+      <nav className="tabbar">{tabs.map(t => <button key={t.id} className={tab === t.id ? "tab on" : "tab"} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}>{t.icon} {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}</button>)}</nav>
+      {tab === "perangkat" && <section className="panel wa-panel">
         <div className="panel-heading"><div><p className="eyebrow">KONEKSI WHATSAPP • BAILEYS</p><h2>Hubungkan WhatsApp</h2></div><span className={waStatus?.connected ? "tag good" : "tag"}>{waStatus?.connected ? "● Terhubung" : "○ Belum terhubung"}</span></div>
         <p className="muted">Backend berjalan di server Pterodactyl. Hubungkan akun WhatsApp milik toko melalui QR atau pairing code.</p>
         <div className="form-grid"><div><button className="primary" onClick={showQr} disabled={!!waStatus?.connected}>Tampilkan QR Code</button>{waQr && <div className="qr-box"><img src={waQr} alt="QR WhatsApp untuk ditautkan" /><small>WhatsApp → Perangkat tertaut → Tautkan perangkat</small></div>}</div>
@@ -252,9 +258,9 @@ export default function Home() {
         <p className="tiny">Kamu bisa menautkan sampai {profile?.max_devices ?? 3} perangkat. Perangkat hanya milik akunmu dan tidak tercampur dengan akun lain.</p>
         {waStatus?.phone && <p className="tiny">Nomor terhubung: {waStatus.phone}</p>}{waStatus?.lastError && <p className="tiny">Info: {waStatus.lastError}</p>}
         {waStatus?.connected && <button className="danger" onClick={disconnectWa}>Putuskan WhatsApp</button>}
-      </section>
+      </section>}
 
-      <section className="panel run-panel">
+      {tab === "beranda" && <section className="panel run-panel">
         <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
         {isAdmin ? (current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Belum ada campaign. Buat dulu di bawah.</p>) : <p className="muted">Isi pesan diatur oleh admin. Pilih kecepatan lalu tekan Mulai.</p>}
         <p className="tiny"><b>Kecepatan kirim</b></p>
@@ -264,9 +270,9 @@ export default function Home() {
         {!devices.some((d: any) => d.connected) && <p className="tiny">Hubungkan minimal 1 perangkat WhatsApp dulu untuk memulai.</p>}
         {running && <button className="ghost" disabled={busy} onClick={sendNow}>Kirim sekarang (tes)</button>}
         <p className="tiny">Kecepatan dihitung per perangkat: makin banyak perangkat online, makin banyak pesan per menit.</p>
-      </section>
+      </section>}
 
-      <section className="tiles">
+      {tab === "beranda" && <section className="tiles">
         <div className="tile-row">
           <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok">📡</span></article>
           <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad">🔌</span></article>
@@ -279,9 +285,9 @@ export default function Home() {
           </div>
           <p className="tiny">Tarif {rp(settings?.price_per_message || 0)} per pesan sukses. Pesan gagal tidak dihitung.</p>
         </article>
-      </section>
+      </section>}
 
-      {!isAdmin && <section className="panel">
+      {!isAdmin && tab === "tarik" && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">TARIK SALDO</p><h2>Penarikan dana</h2></div></div>
         <p className="muted">Saldo: <b>{rp(profile?.balance ?? 0)}</b> · Minimal penarikan: <b>{rp(settings?.min_withdraw ?? 0)}</b></p>
         <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["dana","seabank"] as const).map(m => <button key={m} className={wdMethod === m ? "primary compact" : "ghost"} onClick={() => setWdMethod(m)}>{m === "dana" ? "Dana" : "SeaBank"}</button>)}</div>
@@ -295,7 +301,7 @@ export default function Home() {
         </tbody></table></div>}
       </section>}
 
-      {isAdmin && <section className="panel">
+      {isAdmin && tab === "pengguna" && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">PENGATURAN ADMIN</p><h2>Tarif &amp; pengguna</h2></div></div>
         <p className="tiny">Tarif saat ini: {rp(settings?.price_per_message || 0)} per pesan sukses.</p>
         <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Tarif baru, contoh 50" inputMode="numeric" />
@@ -308,15 +314,15 @@ export default function Home() {
         </tbody></table></div>
       </section>}
 
-      {isAdmin && <section className="panel">
+      {isAdmin && tab === "penarikan" && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">PERMINTAAN PENARIKAN</p><h2>{(overview?.withdrawals || []).filter((w: any) => w.status === "pending").length} menunggu</h2></div></div>
         <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Tujuan</th><th>Jumlah</th><th>Status</th><th></th></tr></thead><tbody>
           {(overview?.withdrawals || []).map((w: any) => <tr key={w.id}><td>{w.name || w.email}<br /><small>{new Date(w.created_at).toLocaleString("id-ID")}</small></td><td>{w.method === "dana" ? "Dana" : "SeaBank"}<br />{w.account_number}<br /><small>{w.account_name}</small></td><td>{rp(w.amount)}</td><td>{wdLabel[w.status]}</td><td>{w.status === "pending" && <><button className="primary compact" onClick={() => processWd(w.id, "paid")}>Sudah dibayar</button> <button className="ghost" onClick={() => processWd(w.id, "rejected")}>Tolak</button></>}</td></tr>)}
         </tbody></table></div>
       </section>}
 
-      {isAdmin && <div className="grid">
-        <section className="panel">
+      {isAdmin && (tab === "database" || tab === "campaign") && <div className="grid">
+        {tab === "database" && <section className="panel">
           <div className="panel-heading"><div><p className="eyebrow">DATABASE PELANGGAN</p><h2>Upload &amp; tambah nomor</h2></div><span className="tag">Opt-in wajib</span></div>
           <div style={{border:"2px dashed #94a3b8",borderRadius:16,padding:14,margin:"12px 0"}}>
             <p className="muted"><b>{dbCount.available}</b> nomor tersedia · Terpakai {dbCount.used} · Total {dbCount.total}</p>
@@ -340,9 +346,9 @@ export default function Home() {
             {contacts.filter(c => { const q = contactFilter.trim().toLowerCase(); return !q || c.phone.includes(q) || (c.name || "").toLowerCase().includes(q); }).slice(0,20).map(c=><tr key={c.id}><td>{c.name}</td><td>{c.phone}</td><td><span className={c.opted_in&&!c.unsubscribed_at?"good":"muted"}>{c.used_at?"Terpakai":c.opted_in&&!c.unsubscribed_at?"Setuju":"Tidak aktif"}</span></td><td><button className="ghost" disabled={busy} onClick={() => contactAction({ action: "delete", id: c.id }, "Hapus nomor " + c.phone + "?")}>Hapus</button></td></tr>)}
             {!contacts.length && <tr><td colSpan={4} className="empty">Belum ada pelanggan.</td></tr>}
           </tbody></table></div>
-        </section>
+        </section>}
 
-        <section className="panel">
+        {tab === "campaign" && <section className="panel">
           <div className="panel-heading"><div><p className="eyebrow">PROMOSI OTOMATIS</p><h2>Buat campaign</h2></div><span className="tag">Baileys</span></div>
           <label>Nama campaign<input value={campaignName} onChange={e=>setCampaignName(e.target.value)} placeholder="Promo akhir pekan" /></label>
           <label>Isi pesan promosi<input value={template} onChange={e=>setTemplate(e.target.value)} placeholder="Halo, ada promo baru di toko kami! Balas STOP untuk berhenti." /></label>
@@ -351,16 +357,16 @@ export default function Home() {
           <button className="primary" onClick={createCampaign}>+ Buat campaign</button>
           <div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name} · {c.status}</small></div><div className="actions">{c.status==="running"?<button className="danger" onClick={()=>stopCampaign(c.id)}>Hentikan</button>:<button className="primary compact" disabled={busy||c.status==="completed"} onClick={()=>startCampaign(c.id)}>Mulai</button>}</div></div>)}
             {!campaigns.length && <p className="empty">Belum ada campaign.</p>}</div>
-        </section>
+        </section>}
       </div>}
 
-      {isAdmin && <section className="panel log-panel"><div className="panel-heading"><div><p className="eyebrow">AKTIVITAS TERBARU</p><h2>Riwayat pengiriman</h2></div><button className="ghost" onClick={loadDashboard}>Muat ulang</button></div>
+      {isAdmin && tab === "riwayat" && <section className="panel log-panel"><div className="panel-heading"><div><p className="eyebrow">AKTIVITAS TERBARU</p><h2>Riwayat pengiriman</h2></div><button className="ghost" onClick={loadDashboard}>Muat ulang</button></div>
         <div className="table-wrap"><table><thead><tr><th>Nomor</th><th>Status</th><th>Detail</th><th>Waktu</th></tr></thead><tbody>
           {logs.map(l=><tr key={l.id}><td>{l.phone}</td><td>{l.status}</td><td>{l.error || "—"}</td><td>{new Date(l.created_at).toLocaleString("id-ID")}</td></tr>)}
           {!logs.length && <tr><td colSpan={4} className="empty">Belum ada riwayat pengiriman.</td></tr>}
         </tbody></table></div>
       </section>}
-      {isAdmin && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
+      {isAdmin && tab === "beranda" && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
       <footer>setanwawa · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
     </div>
   </main>;
