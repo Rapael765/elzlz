@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./stats.css";
 
-type Contact = { id: string; name: string; phone: string; opted_in: boolean; unsubscribed_at: string | null };
+type Contact = { id: string; name: string; phone: string; opted_in: boolean; unsubscribed_at: string | null; used_at?: string | null };
 type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string };
 type Log = { id: string; phone: string; status: string; error: string | null; created_at: string };
 
@@ -16,6 +16,7 @@ export default function Home() {
   const [overview, setOverview] = useState<any>(null);
   const [price, setPrice] = useState("");
   const [dbCount, setDbCount] = useState<any>({ available: 0, used: 0, total: 0 });
+  const [contactFilter, setContactFilter] = useState("");
   const [importText, setImportText] = useState("");
   const [importName, setImportName] = useState("");
   const [importConsent, setImportConsent] = useState(false);
@@ -174,6 +175,13 @@ export default function Home() {
     const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   const wdLabel: Record<string, string> = { pending: "⏳ Menunggu", paid: "✅ Dibayar", rejected: "❌ Ditolak" };
+  async function contactAction(body: any, confirmText?: string) {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setBusy(true);
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    const r = await fetch("/api/admin/contacts", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify(body) });
+    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+  }
   async function importTxt() {
     if (!importText) return setNotice("Pilih file .txt dulu.");
     if (!importConsent) return setNotice("Centang konfirmasi persetujuan (opt-in) dulu.");
@@ -317,14 +325,20 @@ export default function Home() {
             {importName && <p className="tiny">File dipilih: {importName}</p>}
             <label className="tiny"><input type="checkbox" checked={importConsent} onChange={(e) => setImportConsent(e.target.checked)} /> Saya mengonfirmasi nomor-nomor ini sudah menyetujui menerima pesan (opt-in).</label>
             <button className="primary" disabled={busy || !importText} onClick={importTxt}>Impor nomor dari file</button>
+            <p className="tiny"><b>🗑 Hapus database</b></p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button className="ghost" disabled={busy} onClick={() => contactAction({ action: "deleteUsed" }, "Hapus semua nomor yang sudah terpakai? Tindakan ini tidak bisa dibatalkan.")}>Hapus yang terpakai</button>
+              <button className="danger" disabled={busy} onClick={() => contactAction({ action: "deleteAll" }, "HAPUS SEMUA database nomor (" + dbCount.total + " nomor)? Tindakan ini tidak bisa dibatalkan.")}>Hapus SEMUA nomor</button>
+            </div>
           </div>
           <div className="form-grid"><label>Nama pelanggan<input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="Nama pelanggan" /></label><label>Nomor WhatsApp<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="62812xxxxxxx" /></label></div>
           <label className="check"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} /> Pelanggan telah memberi izin menerima promosi WhatsApp.</label>
           <button className="primary" onClick={addContact}>+ Simpan nomor</button>
           <p className="tiny">Masukkan format internasional, contoh 62812xxxxxxx. Jangan mengimpor nomor hasil scraping atau nomor tanpa izin.</p>
-          <div className="table-wrap"><table><thead><tr><th>Nama</th><th>Nomor</th><th>Status</th></tr></thead><tbody>
-            {contacts.slice(0,8).map(c=><tr key={c.id}><td>{c.name}</td><td>{c.phone}</td><td><span className={c.opted_in&&!c.unsubscribed_at?"good":"muted"}>{c.opted_in&&!c.unsubscribed_at?"Setuju":"Tidak aktif"}</span></td></tr>)}
-            {!contacts.length && <tr><td colSpan={3} className="empty">Belum ada pelanggan.</td></tr>}
+          <input value={contactFilter} onChange={(e) => setContactFilter(e.target.value)} placeholder="Cari nomor atau nama (dari 100 terbaru)" />
+          <div className="table-wrap"><table><thead><tr><th>Nama</th><th>Nomor</th><th>Status</th><th></th></tr></thead><tbody>
+            {contacts.filter(c => { const q = contactFilter.trim().toLowerCase(); return !q || c.phone.includes(q) || (c.name || "").toLowerCase().includes(q); }).slice(0,20).map(c=><tr key={c.id}><td>{c.name}</td><td>{c.phone}</td><td><span className={c.opted_in&&!c.unsubscribed_at?"good":"muted"}>{c.used_at?"Terpakai":c.opted_in&&!c.unsubscribed_at?"Setuju":"Tidak aktif"}</span></td><td><button className="ghost" disabled={busy} onClick={() => contactAction({ action: "delete", id: c.id }, "Hapus nomor " + c.phone + "?")}>Hapus</button></td></tr>)}
+            {!contacts.length && <tr><td colSpan={4} className="empty">Belum ada pelanggan.</td></tr>}
           </tbody></table></div>
         </section>
 
