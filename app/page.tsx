@@ -15,6 +15,10 @@ export default function Home() {
   const [run, setRun] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
   const [tab, setTab] = useState("beranda");
+  const [refCode, setRefCode] = useState("");
+  const [me, setMe] = useState<any>(null);
+  const [refRateInput, setRefRateInput] = useState("");
+  useEffect(() => { const r = new URLSearchParams(window.location.search).get("ref"); if (r) { setRefCode(r.toUpperCase()); setMode("signup"); } }, []);
   const [price, setPrice] = useState("");
   const [dbCount, setDbCount] = useState<any>({ available: 0, used: 0, total: 0 });
   const [contactFilter, setContactFilter] = useState("");
@@ -86,7 +90,7 @@ export default function Home() {
     setContacts(c || []); setCampaigns(ca || []); setLogs(l || []);
     const { data: st } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle(); setSettings(st);
     const { data: ru } = await supabase.from("user_runs").select("*").eq("user_id", session.user.id).maybeSingle(); setRun(ru);
-    if (p?.role !== "admin") { const { data: wd } = await supabase.from("withdrawals").select("*").order("created_at", { ascending: false }).limit(10); setMyWd(wd || []); }
+    if (p?.role !== "admin") { const { data: wd } = await supabase.from("withdrawals").select("*").order("created_at", { ascending: false }).limit(10); setMyWd(wd || []); const { data: { session: cs } } = await supabase.auth.getSession(); const mr = await fetch("/api/me", { headers: { Authorization: `Bearer ${cs?.access_token}` } }); if (mr.ok) setMe(await mr.json()); }
     if (p?.role === "admin") {
       const { data: { session: cur } } = await supabase.auth.getSession();
       const r = await fetch("/api/admin/overview", { headers: { Authorization: `Bearer ${cur?.access_token}` } });
@@ -99,7 +103,7 @@ export default function Home() {
   async function auth() {
     setBusy(true); setNotice("");
     const result = mode === "signup"
-      ? await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
+      ? await supabase.auth.signUp({ email, password, options: { data: { full_name: name, ref_code: refCode.trim() } } })
       : await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (result.error) setNotice(result.error.message);
@@ -155,6 +159,15 @@ export default function Home() {
     if (isNaN(v) || v < 0) return setNotice("Isi tarif dengan angka (Rp).");
     const { error } = await supabase.from("app_settings").update({ price_per_message: v }).eq("id", 1);
     setNotice(error ? error.message : "Tarif per pesan disimpan."); setPrice(""); loadDashboard();
+  }
+  async function saveRefRate() {
+    const v = parseInt(refRateInput, 10);
+    if (isNaN(v) || v < 0) return setNotice("Isi komisi referral dengan angka (Rp).");
+    const { error } = await supabase.from("app_settings").update({ referral_rate: v }).eq("id", 1);
+    setNotice(error ? error.message : "Komisi referral disimpan."); setRefRateInput(""); loadDashboard();
+  }
+  async function copyRef() {
+    try { await navigator.clipboard.writeText(refLink); setNotice("Link undangan disalin."); } catch { setNotice("Salin manual: " + refLink); }
   }
   async function saveMin() {
     const v = parseInt(minInput, 10);
@@ -215,6 +228,7 @@ export default function Home() {
       <div className="brand-mark">SW</div><p className="eyebrow">TOKO ONLINE • PROMOTION DESK</p>
       <h1>setanwawa</h1><p className="muted">Kelola pelanggan dan campaign toko dari satu dashboard.</p>
       {mode === "signup" && <label>Nama toko / nama kamu<input value={name} onChange={e=>setName(e.target.value)} placeholder="Nama" /></label>}
+      {mode === "signup" && <label>Kode referral (opsional)<input value={refCode} onChange={e=>setRefCode(e.target.value.toUpperCase())} placeholder="Contoh A1B2C3D4" /></label>}
       <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@contoh.com" /></label>
       <label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimal 6 karakter" /></label>
       <button className="primary full" disabled={busy} onClick={auth}>{busy ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar akun"}</button>
@@ -240,15 +254,17 @@ export default function Home() {
   const pendingWd = (overview?.withdrawals || []).filter((w: any) => w.status === "pending").length;
   const tabs: { id: string; label: string; icon: string; badge?: number }[] = isAdmin
     ? [{ id: "beranda", label: "Beranda", icon: "🏠" }, { id: "perangkat", label: "Perangkat", icon: "📱" }, { id: "database", label: "Database", icon: "🗂️" }, { id: "campaign", label: "Campaign", icon: "📣" }, { id: "pengguna", label: "Pengguna", icon: "👥" }, { id: "penarikan", label: "Penarikan", icon: "💸", badge: pendingWd }, { id: "riwayat", label: "Riwayat", icon: "🧾" }]
-    : [{ id: "beranda", label: "Beranda", icon: "🏠" }, { id: "perangkat", label: "Perangkat", icon: "📱" }, { id: "tarik", label: "Tarik saldo", icon: "💸" }];
-  return <main className="dashboard">
+    : [{ id: "beranda", label: "Dashboard", icon: "🏠" }, { id: "perangkat", label: "Devices", icon: "📱" }, { id: "wallet", label: "Wallets", icon: "💳" }, { id: "referral", label: "Referrals", icon: "👥" }, { id: "profil", label: "Profile", icon: "👤" }];
+  const refLink = (typeof window !== "undefined" ? window.location.origin : "") + "/?ref=" + (me?.referral?.code || "");
+  return <main className={"dashboard" + (!isAdmin ? " has-bottomnav" : "")}>
     <header className="topbar"><div className="brand"><span className="brand-mark small">SW</span><div><b>setanwawa</b><small>Promotion dashboard</small></div></div>
       <div className="user-area"><span>{session.user.email}</span><button className="ghost" onClick={signOut}>Keluar</button></div>
     </header>
     <div className="content">
-      <div className="welcome"><div><p className="eyebrow">DASHBOARD {isAdmin ? "ADMIN" : "TOKO"}</p><h1>Halo, {profile?.full_name || "Pemilik Toko"} 👋</h1><p className="muted">Pantau pelanggan dan promosi toko kamu.</p></div><span className="status-pill">● Sistem siap</span></div>
+      {!isAdmin && <div className="pagehead"><h1>{({ beranda: "Dashboard", perangkat: "Devices", wallet: "Wallets", referral: "Referrals", profil: "Profile" } as Record<string, string>)[tab]}</h1><p className="muted">{({ beranda: "Ringkasan akun kamu hari ini", perangkat: "Kelola perangkat WhatsApp kamu", wallet: "Saldo dan penarikan dana", referral: "Undang teman dan dapat komisi", profil: "Informasi akunmu" } as Record<string, string>)[tab]}</p></div>}
+      {isAdmin && <div className="welcome"><div><p className="eyebrow">DASHBOARD {isAdmin ? "ADMIN" : "TOKO"}</p><h1>Halo, {profile?.full_name || "Pemilik Toko"} 👋</h1><p className="muted">Pantau pelanggan dan promosi toko kamu.</p></div><span className="status-pill">● Sistem siap</span></div>}
       {notice && <div className="notice-banner">{notice}</div>}
-      <nav className="tabbar">{tabs.map(t => <button key={t.id} className={tab === t.id ? "tab on" : "tab"} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}>{t.icon} {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}</button>)}</nav>
+      {isAdmin && <nav className="tabbar">{tabs.map(t => <button key={t.id} className={tab === t.id ? "tab on" : "tab"} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}>{t.icon} {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}</button>)}</nav>}
       {tab === "perangkat" && <section className="panel wa-panel">
         <div className="panel-heading"><div><p className="eyebrow">KONEKSI WHATSAPP • BAILEYS</p><h2>Hubungkan WhatsApp</h2></div><span className={waStatus?.connected ? "tag good" : "tag"}>{waStatus?.connected ? "● Terhubung" : "○ Belum terhubung"}</span></div>
         <p className="muted">Backend berjalan di server Pterodactyl. Hubungkan akun WhatsApp milik toko melalui QR atau pairing code.</p>
@@ -260,18 +276,9 @@ export default function Home() {
         {waStatus?.connected && <button className="danger" onClick={disconnectWa}>Putuskan WhatsApp</button>}
       </section>}
 
-      {tab === "beranda" && <section className="panel run-panel">
-        <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
-        {isAdmin ? (current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Belum ada campaign. Buat dulu di bawah.</p>) : <p className="muted">Isi pesan diatur oleh admin. Pilih kecepatan lalu tekan Mulai.</p>}
-        <p className="tiny"><b>Kecepatan kirim</b></p>
-        <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={running}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
-        <p className="tiny">Slow: aman, sekitar 2 pesan/menit. Medium: sekitar 5 pesan/menit. Fast: sekitar 8 pesan/menit (risiko akun dibatasi WhatsApp lebih tinggi).</p>
-        {running ? <button className="danger" onClick={()=>stopCampaign("")}>Hentikan</button> : <button className="primary" disabled={busy || (isAdmin && !current) || !devices.some((d: any) => d.connected)} onClick={()=>startCampaign(current?.id || "")}>▶ Mulai</button>}
-        {!devices.some((d: any) => d.connected) && <p className="tiny">Hubungkan minimal 1 perangkat WhatsApp dulu untuk memulai.</p>}
-        {running && <button className="ghost" disabled={busy} onClick={sendNow}>Kirim sekarang (tes)</button>}
-        <p className="tiny">Kecepatan dihitung per perangkat: makin banyak perangkat online, makin banyak pesan per menit.</p>
-      </section>}
+      
 
+      {!isAdmin && tab === "beranda" && <div className="infocard"><b>ℹ️ Komisi per pesan</b><p>Kamu mendapatkan <b>{rp(settings?.price_per_message || 0)}</b> untuk setiap pesan yang berhasil terkirim melalui device kamu. Pesan gagal tidak dihitung. Undang teman dan dapat <b>{rp(settings?.referral_rate || 0)}</b> per pesan sukses mereka.</p></div>}
       {tab === "beranda" && <section className="tiles">
         <div className="tile-row">
           <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok">📡</span></article>
@@ -287,7 +294,33 @@ export default function Home() {
         </article>
       </section>}
 
-      {!isAdmin && tab === "tarik" && <section className="panel">
+      {!isAdmin && tab === "beranda" && <>
+        <div className="warncard"><b>⚠️ Peringatan</b><p>Jangan menghapus pesan yang sudah terkirim dan jangan mengeluarkan perangkat dari WhatsApp saat pengiriman berjalan, agar akunmu tidak dibatasi.</p></div>
+        <section className="panel">
+          <div className="panel-heading"><div><h2>Hari Ini</h2></div><span className="tag">Realtime</span></div>
+          <div className="todayrow"><span className="dot blue" /><div><b>WA Aktif</b><small>Jumlah device terhubung</small></div><div className="r"><b>{onlineN}</b><small>Connected</small></div></div>
+          <div className="todayrow"><span className="dot grey" /><div><b>WA Disconnect</b><small>Perlu reconnect/scan</small></div><div className="r"><b>{offlineN}</b><small>Offline</small></div></div>
+          <div className="todayrow"><span className="dot blue" /><div><b>Pesan Sukses</b><small>Terkirim hari ini</small></div><div className="r"><b>{me?.today?.sent ?? 0}</b><small>Delivered</small></div></div>
+          <div className="todayrow"><span className="dot orange" /><div><b>Pendapatan</b><small>Komisi hari ini</small></div><div className="r"><b>{rp(me?.today?.earned ?? 0)}</b><small>Today</small></div></div>
+        </section>
+      </>}
+
+      {tab === "beranda" && <section className="panel run-panel" id="run">
+        <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
+        {isAdmin ? (current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Belum ada campaign. Buat dulu di bawah.</p>) : <p className="muted">Isi pesan diatur oleh admin. Pilih kecepatan lalu tekan Mulai.</p>}
+        <p className="tiny"><b>Kecepatan kirim</b></p>
+        <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={running}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
+        <p className="tiny">Slow: aman, sekitar 2 pesan/menit. Medium: sekitar 5 pesan/menit. Fast: sekitar 8 pesan/menit (risiko akun dibatasi WhatsApp lebih tinggi).</p>
+        {running ? <button className="danger" onClick={()=>stopCampaign("")}>Hentikan</button> : <button className="primary" disabled={busy || (isAdmin && !current) || !devices.some((d: any) => d.connected)} onClick={()=>startCampaign(current?.id || "")}>▶ Mulai</button>}
+        {!devices.some((d: any) => d.connected) && <p className="tiny">Hubungkan minimal 1 perangkat WhatsApp dulu untuk memulai.</p>}
+        {running && <button className="ghost" disabled={busy} onClick={sendNow}>Kirim sekarang (tes)</button>}
+        <p className="tiny">Kecepatan dihitung per perangkat: makin banyak perangkat online, makin banyak pesan per menit.</p>
+      </section>}
+
+      {!isAdmin && tab === "beranda" && <div className="botcard" onClick={() => setTab("perangkat")}><span className="boticon">⚙️</span><div><small>TAMBAH PERANGKAT</small><b>Kelola WhatsApp</b></div><span>›</span></div>}
+      {!isAdmin && tab === "beranda" && <button className="fab" aria-label="Mulai kirim" onClick={() => document.getElementById("run")?.scrollIntoView({ behavior: "smooth" })}>➤</button>}
+
+      {!isAdmin && tab === "wallet" && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">TARIK SALDO</p><h2>Penarikan dana</h2></div></div>
         <p className="muted">Saldo: <b>{rp(profile?.balance ?? 0)}</b> · Minimal penarikan: <b>{rp(settings?.min_withdraw ?? 0)}</b></p>
         <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["dana","seabank"] as const).map(m => <button key={m} className={wdMethod === m ? "primary compact" : "ghost"} onClick={() => setWdMethod(m)}>{m === "dana" ? "Dana" : "SeaBank"}</button>)}</div>
@@ -301,6 +334,30 @@ export default function Home() {
         </tbody></table></div>}
       </section>}
 
+      {!isAdmin && tab === "referral" && <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">REFERRAL</p><h2>Undang &amp; dapat komisi</h2></div></div>
+        <p className="muted">Kamu mendapat <b>{rp(settings?.referral_rate || 0)}</b> untuk setiap pesan sukses dari pengguna yang kamu undang.</p>
+        <p className="tiny">Kode referral kamu</p>
+        <div className="codebox">{me?.referral?.code || "..."}</div>
+        <p className="tiny" style={{wordBreak:"break-all"}}>{refLink}</p>
+        <button className="primary" onClick={copyRef}>Salin link undangan</button>
+        <div className="tile-sub">
+          <div className="sub"><div><small>Diundang</small><strong>{me?.referral?.count ?? 0}</strong></div></div>
+          <div className="sub"><div><small>Komisi referral</small><strong>{rp(me?.referral?.earned ?? 0)}</strong></div></div>
+        </div>
+        {(me?.referral?.invited || []).length > 0 && <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Pesan sukses</th></tr></thead><tbody>
+          {(me?.referral?.invited || []).map((u: any, i: number) => <tr key={i}><td>{u.name}</td><td>{u.success_count}</td></tr>)}
+        </tbody></table></div>}
+      </section>}
+
+      {!isAdmin && tab === "profil" && <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">PROFIL</p><h2>{profile?.full_name || "Pengguna"}</h2></div></div>
+        <p className="muted">{session.user.email}</p>
+        <p className="tiny">Peran: Pengguna · Kode referral: <b>{me?.referral?.code || "-"}</b></p>
+        <p className="tiny">Tarif {rp(settings?.price_per_message || 0)} per pesan sukses · Komisi referral {rp(settings?.referral_rate || 0)} per pesan sukses pengguna undangan.</p>
+        <button className="danger" onClick={signOut}>Keluar</button>
+      </section>}
+
       {isAdmin && tab === "pengguna" && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">PENGATURAN ADMIN</p><h2>Tarif &amp; pengguna</h2></div></div>
         <p className="tiny">Tarif saat ini: {rp(settings?.price_per_message || 0)} per pesan sukses.</p>
@@ -309,6 +366,9 @@ export default function Home() {
         <p className="tiny">Minimal penarikan saat ini: {rp(settings?.min_withdraw ?? 0)}.</p>
         <input value={minInput} onChange={(e) => setMinInput(e.target.value)} placeholder="Minimal penarikan baru, contoh 10000" inputMode="numeric" />
         <button className="primary" onClick={saveMin}>Simpan minimal penarikan</button>
+        <p className="tiny">Komisi referral saat ini: {rp(settings?.referral_rate ?? 0)} per pesan sukses pengguna undangan.</p>
+        <input value={refRateInput} onChange={(e) => setRefRateInput(e.target.value)} placeholder="Komisi referral baru per pesan, contoh 100" inputMode="numeric" />
+        <button className="primary" onClick={saveRefRate}>Simpan komisi referral</button>
         <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Perangkat</th><th>Maks</th><th>Saldo</th><th></th></tr></thead><tbody>
           {(overview?.users || []).map((u: any) => <tr key={u.id}><td>{u.name || u.email}<br /><small>{u.email}</small></td><td>🟢 {u.on} / ⚪ {u.linked - u.on}</td><td><input type="number" min={1} max={9} defaultValue={u.max_devices} onBlur={(e) => Number(e.target.value) !== u.max_devices && setLimit(u.id, e.target.value)} style={{width:64}} /></td><td>{rp(u.balance)}<br /><small>{u.success_count} pesan</small></td><td><button className="ghost" onClick={() => payout(u.id)} disabled={!u.balance}>Reset saldo</button></td></tr>)}
         </tbody></table></div>
@@ -367,6 +427,7 @@ export default function Home() {
         </tbody></table></div>
       </section>}
       {isAdmin && tab === "beranda" && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
+      {!isAdmin && <nav className="bottomnav">{tabs.map(t => <button key={t.id} className={(tab === t.id ? "bn on" : "bn") + (t.id === "wallet" ? " center" : "")} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}><span className="bi">{t.icon}</span><small>{t.label}</small></button>)}</nav>}
       <footer>setanwawa · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
     </div>
   </main>;
