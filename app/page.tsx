@@ -5,7 +5,7 @@ import "./stats.css";
 
 type Contact = { id: string; name: string; phone: string; opted_in: boolean; unsubscribed_at: string | null; used_at?: string | null };
 type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string; button_label?: string | null; button_url?: string | null };
-type Log = { id: string; phone: string; status: string; error: string | null; created_at: string };
+type Log = { id: string; phone: string; status: string; error: string | null; created_at: string; reward?: number };
 
 export default function Home() {
   const supabase = createClient();
@@ -15,6 +15,8 @@ export default function Home() {
   const [run, setRun] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
   const [tab, setTab] = useState("beranda");
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setLoaded(true), 6000); return () => clearTimeout(t); }, []);
   const [useBtn, setUseBtn] = useState(false);
   const [btnLabel, setBtnLabel] = useState("");
   const [btnUrl, setBtnUrl] = useState("");
@@ -84,7 +86,7 @@ export default function Home() {
 
   async function loadDashboard() {
     const { data: p } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
-    setProfile(p);
+    setProfile(p); setLoaded(true);
     const [{data:c}, {data:ca}, {data:l}] = await Promise.all([
       supabase.from("contacts").select("*").order("created_at", {ascending:false}).limit(100),
       supabase.from("campaigns").select("*").order("created_at", {ascending:false}).limit(20),
@@ -166,14 +168,14 @@ export default function Home() {
   async function savePrice() {
     const v = parseInt(price, 10);
     if (isNaN(v) || v < 0) return setNotice("Isi tarif dengan angka (Rp).");
-    const { error } = await supabase.from("app_settings").update({ price_per_message: v }).eq("id", 1);
-    setNotice(error ? error.message : "Tarif per pesan disimpan."); setPrice(""); loadDashboard();
+    const { data: upd, error } = await supabase.from("app_settings").update({ price_per_message: v }).eq("id", 1).select();
+    setNotice(error ? error.message : !upd?.length ? "Gagal menyimpan tarif: pastikan kamu login sebagai admin dan SQL sudah dijalankan." : "Tarif per pesan disimpan: " + rp(v) + " per pesan sukses."); setPrice(""); loadDashboard();
   }
   async function saveRefRate() {
     const v = parseInt(refRateInput, 10);
     if (isNaN(v) || v < 0) return setNotice("Isi komisi referral dengan angka (Rp).");
-    const { error } = await supabase.from("app_settings").update({ referral_rate: v }).eq("id", 1);
-    setNotice(error ? error.message : "Komisi referral disimpan."); setRefRateInput(""); loadDashboard();
+    const { data: upd, error } = await supabase.from("app_settings").update({ referral_rate: v }).eq("id", 1).select();
+    setNotice(error ? error.message : !upd?.length ? "Gagal menyimpan: pastikan kamu login sebagai admin dan schema_update7 sudah dijalankan." : "Komisi referral disimpan: " + rp(v) + "."); setRefRateInput(""); loadDashboard();
   }
   async function copyRef() {
     try { await navigator.clipboard.writeText(refLink); setNotice("Link undangan disalin."); } catch { setNotice("Salin manual: " + refLink); }
@@ -181,8 +183,8 @@ export default function Home() {
   async function saveMin() {
     const v = parseInt(minInput, 10);
     if (isNaN(v) || v < 0) return setNotice("Isi minimal penarikan dengan angka (Rp).");
-    const { error } = await supabase.from("app_settings").update({ min_withdraw: v }).eq("id", 1);
-    setNotice(error ? error.message : "Minimal penarikan disimpan."); setMinInput(""); loadDashboard();
+    const { data: upd, error } = await supabase.from("app_settings").update({ min_withdraw: v }).eq("id", 1).select();
+    setNotice(error ? error.message : !upd?.length ? "Gagal menyimpan: pastikan kamu login sebagai admin." : "Minimal penarikan disimpan: " + rp(v) + "."); setMinInput(""); loadDashboard();
   }
   async function submitWithdraw() {
     const { data: { session: cur } } = await supabase.auth.getSession();
@@ -230,7 +232,7 @@ export default function Home() {
     const r = await fetch("/api/admin/limit", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid, maxDevices: Number(v) }) });
     const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
-  async function signOut() { await supabase.auth.signOut(); setProfile(null); }
+  async function signOut() { await supabase.auth.signOut(); setProfile(null); setLoaded(false); }
 
   if (!session) return <main className="auth-shell">
     <section className="auth-card">
@@ -254,12 +256,13 @@ export default function Home() {
   const doneThis = false;
   const statusLabel = isAdmin && !current ? "Belum ada" : running ? "● Berjalan" : doneThis ? "Selesai" : run?.status === "stopped" ? "Dihentikan" : "Siap";
   const rp = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
-  const onlineN = isAdmin ? (overview?.online ?? 0) : devices.filter((d: any) => d.connected).length;
-  const offlineN = isAdmin ? (overview?.offline ?? 0) : devices.filter((d: any) => d.registered && !d.connected).length;
-  const balanceN = isAdmin ? (overview?.balanceTotal ?? 0) : (profile?.balance ?? 0);
-  const earnedN = isAdmin ? (overview?.earnedTotal ?? 0) : (profile?.earned ?? 0);
-  const successN = isAdmin ? (overview?.successTotal ?? 0) : (profile?.success_count ?? 0);
+  const onlineN = devices.filter((d: any) => d.connected).length;
+  const offlineN = devices.filter((d: any) => d.registered && !d.connected).length;
+  const balanceN = profile?.balance ?? 0;
+  const earnedN = profile?.earned ?? 0;
+  const successN = profile?.success_count ?? 0;
 
+  if (!loaded) return <main className="dashboard"><section className="panel"><p className="muted">Memuat dashboard…</p></section></main>;
   const pendingWd = (overview?.withdrawals || []).filter((w: any) => w.status === "pending").length;
   const tabs: { id: string; label: string; icon: string; badge?: number }[] = isAdmin
     ? [{ id: "beranda", label: "Beranda", icon: "🏠" }, { id: "perangkat", label: "Perangkat", icon: "📱" }, { id: "database", label: "Database", icon: "🗂️" }, { id: "campaign", label: "Campaign", icon: "📣" }, { id: "pengguna", label: "Pengguna", icon: "👥" }, { id: "penarikan", label: "Penarikan", icon: "💸", badge: pendingWd }, { id: "riwayat", label: "Riwayat", icon: "🧾" }]
@@ -369,6 +372,12 @@ export default function Home() {
 
       {isAdmin && tab === "pengguna" && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">PENGATURAN ADMIN</p><h2>Tarif &amp; pengguna</h2></div></div>
+        <div className="tile-sub" style={{borderTop:"none",marginTop:0,paddingTop:0}}>
+          <div className="sub"><div><small>Total saldo semua pengguna</small><strong>{rp(overview?.balanceTotal ?? 0)}</strong></div></div>
+          <div className="sub"><div><small>Perangkat online / offline</small><strong>{overview?.online ?? 0} / {overview?.offline ?? 0}</strong></div></div>
+          <div className="sub"><div><small>Total pendapatan pengguna</small><strong>{rp(overview?.earnedTotal ?? 0)}</strong></div></div>
+          <div className="sub"><div><small>Total pesan sukses</small><strong>{overview?.successTotal ?? 0}</strong></div></div>
+        </div>
         <p className="tiny">Tarif saat ini: {rp(settings?.price_per_message || 0)} per pesan sukses.</p>
         <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Tarif baru, contoh 50" inputMode="numeric" />
         <button className="primary" onClick={savePrice}>Simpan tarif</button>
@@ -436,8 +445,8 @@ export default function Home() {
       </div>}
 
       {isAdmin && tab === "riwayat" && <section className="panel log-panel"><div className="panel-heading"><div><p className="eyebrow">AKTIVITAS TERBARU</p><h2>Riwayat pengiriman</h2></div><button className="ghost" onClick={loadDashboard}>Muat ulang</button></div>
-        <div className="table-wrap"><table><thead><tr><th>Nomor</th><th>Status</th><th>Detail</th><th>Waktu</th></tr></thead><tbody>
-          {logs.map(l=><tr key={l.id}><td>{l.phone}</td><td>{l.status}</td><td>{l.error || "—"}</td><td>{new Date(l.created_at).toLocaleString("id-ID")}</td></tr>)}
+        <div className="table-wrap"><table><thead><tr><th>Nomor</th><th>Status</th><th>Imbalan</th><th>Detail</th><th>Waktu</th></tr></thead><tbody>
+          {logs.map(l=><tr key={l.id}><td>{l.phone}</td><td>{l.status}</td><td>{l.status === "sent" ? rp(l.reward || 0) : "—"}</td><td>{l.error || "—"}</td><td>{new Date(l.created_at).toLocaleString("id-ID")}</td></tr>)}
           {!logs.length && <tr><td colSpan={4} className="empty">Belum ada riwayat pengiriman.</td></tr>}
         </tbody></table></div>
       </section>}
