@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import "./stats.css";
 
 type Contact = { id: string; name: string; phone: string; opted_in: boolean; unsubscribed_at: string | null; used_at?: string | null };
-type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string };
+type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string; button_label?: string | null; button_url?: string | null };
 type Log = { id: string; phone: string; status: string; error: string | null; created_at: string };
 
 export default function Home() {
@@ -15,6 +15,9 @@ export default function Home() {
   const [run, setRun] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
   const [tab, setTab] = useState("beranda");
+  const [useBtn, setUseBtn] = useState(false);
+  const [btnLabel, setBtnLabel] = useState("");
+  const [btnUrl, setBtnUrl] = useState("");
   const [refCode, setRefCode] = useState("");
   const [me, setMe] = useState<any>(null);
   const [refRateInput, setRefRateInput] = useState("");
@@ -124,13 +127,19 @@ export default function Home() {
   async function createCampaign() {
     setNotice("");
     if (!campaignName.trim() || !template.trim()) return setNotice("Isi nama campaign dan isi pesan promosi.");
+    let bLabel: string | null = null, bUrl: string | null = null;
+    if (useBtn) {
+      bLabel = btnLabel.trim(); bUrl = btnUrl.trim();
+      if (!bLabel || bLabel.length > 25) return setNotice("Isi teks tombol (maksimal 25 huruf).");
+      if (!/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(bUrl)) return setNotice("Link tombol harus diawali http:// atau https:// dan berupa alamat yang valid.");
+    }
     const { data, error } = await supabase.from("campaigns").insert({
-      name: campaignName.trim(), template_name: template.trim(),
+      name: campaignName.trim(), template_name: template.trim(), button_label: bLabel, button_url: bUrl,
       language_code: "id", body_variables: variables.split("|").map(v => v.trim()).filter(Boolean),
       status: "draft", created_by: session.user.id
     }).select().single();
     if (error) setNotice(error.message);
-    else { setCampaignName(""); setTemplate(""); setVariables(""); setNotice("Campaign dibuat. Tekan Mulai saat siap."); loadDashboard(); }
+    else { setCampaignName(""); setTemplate(""); setVariables(""); setUseBtn(false); setBtnLabel(""); setBtnUrl(""); setNotice("Campaign dibuat. Tekan Mulai saat siap."); loadDashboard(); }
   }
 
   async function startCampaign(id: string) {
@@ -411,11 +420,17 @@ export default function Home() {
         {tab === "campaign" && <section className="panel">
           <div className="panel-heading"><div><p className="eyebrow">PROMOSI OTOMATIS</p><h2>Buat campaign</h2></div><span className="tag">Baileys</span></div>
           <label>Nama campaign<input value={campaignName} onChange={e=>setCampaignName(e.target.value)} placeholder="Promo akhir pekan" /></label>
-          <label>Isi pesan promosi<input value={template} onChange={e=>setTemplate(e.target.value)} placeholder="Halo, ada promo baru di toko kami! Balas STOP untuk berhenti." /></label>
+          <label>Isi pesan promosi<textarea rows={4} value={template} onChange={e=>setTemplate(e.target.value)} placeholder="Halo, ada promo baru di toko kami! Balas STOP untuk berhenti." /></label>
+          <label className="tiny"><input type="checkbox" checked={useBtn} onChange={(e) => setUseBtn(e.target.checked)} /> Tambahkan tombol (teks + tombol link)</label>
+          {useBtn && <>
+            <label>Teks tombol<input value={btnLabel} onChange={(e) => setBtnLabel(e.target.value)} placeholder="Contoh: Lihat promo" maxLength={25} /></label>
+            <label>Link tombol<input value={btnUrl} onChange={(e) => setBtnUrl(e.target.value)} placeholder="https://contoh.com/promo" inputMode="url" /></label>
+          </>}
+          {template.trim() && <div className="wa-preview"><p className="tiny">Pratinjau pesan</p><div className="bubble">{template}</div>{useBtn && btnLabel.trim() && <div className="wabtn">🔗 {btnLabel}</div>}</div>}
           <label>Catatan internal (opsional)<input value={variables} onChange={e=>setVariables(e.target.value)} placeholder="Contoh: Promo akhir pekan" /></label>
           <p className="tiny">Kirim hanya kepada pelanggan yang secara jelas menyetujui promosi. Pastikan pesan memuat cara berhenti, misalnya balas STOP. Pengiriman dijalankan bertahap.</p>
           <button className="primary" onClick={createCampaign}>+ Buat campaign</button>
-          <div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name} · {c.status}</small></div><div className="actions">{c.status==="running"?<button className="danger" onClick={()=>stopCampaign(c.id)}>Hentikan</button>:<button className="primary compact" disabled={busy||c.status==="completed"} onClick={()=>startCampaign(c.id)}>Mulai</button>}</div></div>)}
+          <div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name} · {c.status}{c.button_url ? " · 🔗 " + (c.button_label || "tombol") : ""}</small></div><div className="actions">{c.status==="running"?<button className="danger" onClick={()=>stopCampaign(c.id)}>Hentikan</button>:<button className="primary compact" disabled={busy||c.status==="completed"} onClick={()=>startCampaign(c.id)}>Mulai</button>}</div></div>)}
             {!campaigns.length && <p className="empty">Belum ada campaign.</p>}</div>
         </section>}
       </div>}
