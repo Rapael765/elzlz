@@ -1,1 +1,21 @@
-
+name: Terapkan update zip
+on:
+  push:
+    paths:
+      - 'update.zip'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ekstrak dan commit
+        run: |
+          unzip -o update.zip
+          rm -f update.zip vercel.json
+          git config user.name "update-bot"
+          git config user.email "update-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Terapkan update dari update.zip" || echo "tidak ada perubahan"
+          git push
