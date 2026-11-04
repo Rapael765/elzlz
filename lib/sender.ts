@@ -30,7 +30,7 @@ export async function processRun(db: any, run: any, price: number) {
     const mine = todo.filter((_: any, j: number) => j % slots.length === i);
     for (let k = 0; k < mine.length; k++) {
       const contact = mine[k];
-      const { data: claim, error: logErr } = await db.from("message_logs").insert({ campaign_id: campaign.id, contact_id: contact.id, phone: contact.phone, status: "pending", sent_by: run.user_id }).select("id").single();
+      const { data: claim, error: logErr } = await db.from("message_logs").insert({ campaign_id: campaign.id, contact_id: contact.id, phone: contact.phone, status: "pending", sent_by: run.user_id, device_slot: slot }).select("id").single();
       if (logErr || !claim) { out.note = `Database: ${logErr?.message || "gagal mencatat"}`; await release([contact.id]); continue; }
       try {
         const r = await fetch(`${base}/send`, { method: "POST", headers: H(slot), body: JSON.stringify({ phone: contact.phone, text: messageText }), signal: AbortSignal.timeout(25000) });
