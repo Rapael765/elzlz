@@ -15,6 +15,19 @@ export default function Home() {
   const [run, setRun] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
   const [tab, setTab] = useState("beranda");
+  const [devQuery, setDevQuery] = useState("");
+  const [devFilter, setDevFilter] = useState<"all" | "online" | "offline">("all");
+  const [showPair, setShowPair] = useState(false);
+  const [walletMenu, setWalletMenu] = useState(false);
+  const [txs, setTxs] = useState<any[]>([]);
+  const [txFilter, setTxFilter] = useState<"all" | "credit" | "debit">("all");
+  const [txLimit, setTxLimit] = useState(25);
+  const [txQuery, setTxQuery] = useState("");
+  const [refTab, setRefTab] = useState<"users" | "history">("users");
+  const [pMethod, setPMethod] = useState<"dana" | "seabank">("dana");
+  const [pAcc, setPAcc] = useState("");
+  const [pName, setPName] = useState("");
+  useEffect(() => { if (profile?.payout_method) { setPMethod(profile.payout_method); setPAcc(profile.payout_account || ""); setPName(profile.payout_name || ""); } }, [profile?.payout_method, profile?.payout_account, profile?.payout_name]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => { const t = setTimeout(() => setLoaded(true), 6000); return () => clearTimeout(t); }, []);
   const [useBtn, setUseBtn] = useState(false);
@@ -72,9 +85,9 @@ export default function Home() {
   useEffect(() => { setWaQr(""); setPairCode(""); setWaStatus(null); if (session) loadWaStatus(); }, [slot]);
   useEffect(() => { if (waStatus?.connected) { setWaQr(""); setPairCode(""); } }, [waStatus?.connected]);
 
-  async function waRequest(path: string, method = "GET", body?: any) {
+  async function waRequest(path: string, method = "GET", body?: any, slotOverride?: number) {
     const { data: { session: s } } = await supabase.auth.getSession();
-    const response = await fetch(path + (path.includes("?") ? "&" : "?") + "slot=" + slotRef.current, { method, headers: { Authorization: `Bearer ${s?.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const response = await fetch(path + (path.includes("?") ? "&" : "?") + "slot=" + (slotOverride ?? slotRef.current), { method, headers: { Authorization: `Bearer ${s?.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Permintaan WhatsApp gagal.");
     return data;
@@ -95,7 +108,7 @@ export default function Home() {
     setContacts(c || []); setCampaigns(ca || []); setLogs(l || []);
     const { data: st } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle(); setSettings(st);
     const { data: ru } = await supabase.from("user_runs").select("*").eq("user_id", session.user.id).maybeSingle(); setRun(ru);
-    if (p?.role !== "admin") { const { data: wd } = await supabase.from("withdrawals").select("*").order("created_at", { ascending: false }).limit(10); setMyWd(wd || []); const { data: { session: cs } } = await supabase.auth.getSession(); const mr = await fetch("/api/me", { headers: { Authorization: `Bearer ${cs?.access_token}` } }); if (mr.ok) setMe(await mr.json()); }
+    if (p?.role !== "admin") { const { data: wd } = await supabase.from("withdrawals").select("*").order("created_at", { ascending: false }).limit(10); setMyWd(wd || []); const { data: { session: cs } } = await supabase.auth.getSession(); const mr = await fetch("/api/me", { headers: { Authorization: `Bearer ${cs?.access_token}` } }); if (mr.ok) setMe(await mr.json()); const { data: tx } = await supabase.from("transactions").select("*").order("created_at", { ascending: false }).limit(300); setTxs(tx || []); }
     if (p?.role === "admin") {
       const { data: { session: cur } } = await supabase.auth.getSession();
       const r = await fetch("/api/admin/overview", { headers: { Authorization: `Bearer ${cur?.access_token}` } });
@@ -189,7 +202,7 @@ export default function Home() {
   async function submitWithdraw() {
     const { data: { session: cur } } = await supabase.auth.getSession();
     setBusy(true);
-    const r = await fetch("/api/withdraw", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ amount: Number(wdAmount), method: wdMethod, accountNumber: wdAcc, accountName: wdName }) });
+    const r = await fetch("/api/withdraw", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ amount: Number(wdAmount) }) });
     const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai.");
     if (r.ok) setWdAmount(""); loadDashboard();
   }
@@ -232,6 +245,25 @@ export default function Home() {
     const r = await fetch("/api/admin/limit", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid, maxDevices: Number(v) }) });
     const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
+  async function disconnectSlot(n: number) {
+    if (!window.confirm("Putuskan Perangkat " + n + "?")) return;
+    try { const d = await waRequest("/api/baileys/disconnect", "POST", {}, n); setNotice(d.message || "Perangkat diputus."); setWaQr(""); setPairCode(""); await loadWaStatus(); } catch (e: any) { setNotice(e.message); }
+  }
+  function pickSlot() {
+    const max = profile?.max_devices ?? 3; let n = slot;
+    for (let i = 1; i <= max; i++) { const d = devices.find((x: any) => x.slot === i); if (!d || !d.registered) { n = i; break; } }
+    slotRef.current = n; setSlot(n); return n;
+  }
+  async function startScan() { setShowPair(false); setPairCode(""); const n = pickSlot(); setNotice("Memproses Perangkat " + n + "…"); await showQr(); }
+  function startPair() { setWaQr(""); setPairCode(""); pickSlot(); setShowPair(true); }
+  async function saveProfilePayout() {
+    const { data: { session: cur } } = await supabase.auth.getSession(); setBusy(true);
+    const r = await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ method: pMethod, account: pAcc, name: pName }) });
+    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+  }
+  async function shareRef() {
+    try { if (navigator.share) await navigator.share({ title: "setanwawa", text: "Daftar di setanwawa pakai kode referral " + (me?.referral?.code || ""), url: refLink }); else await copyRef(); } catch {}
+  }
   async function signOut() { await supabase.auth.signOut(); setProfile(null); setLoaded(false); }
 
   if (!session) return <main className="auth-shell">
@@ -267,17 +299,30 @@ export default function Home() {
   const tabs: { id: string; label: string; icon: string; badge?: number }[] = isAdmin
     ? [{ id: "beranda", label: "Beranda", icon: "🏠" }, { id: "perangkat", label: "Perangkat", icon: "📱" }, { id: "database", label: "Database", icon: "🗂️" }, { id: "campaign", label: "Campaign", icon: "📣" }, { id: "pengguna", label: "Pengguna", icon: "👥" }, { id: "penarikan", label: "Penarikan", icon: "💸", badge: pendingWd }, { id: "riwayat", label: "Riwayat", icon: "🧾" }]
     : [{ id: "beranda", label: "Dashboard", icon: "🏠" }, { id: "perangkat", label: "Devices", icon: "📱" }, { id: "wallet", label: "Wallets", icon: "💳" }, { id: "referral", label: "Referrals", icon: "👥" }, { id: "profil", label: "Profile", icon: "👤" }];
+  const maxD = profile?.max_devices ?? 3;
+  const linkedN = devices.filter((d: any) => d.registered || d.connected).length;
+  const devId = (n: number) => "dev_" + String(profile?.id || "").replace(/-/g, "").slice(0, 6) + n;
+  const devCards = Array.from({ length: maxD }, (_, i) => i + 1).map(n => ({ n, d: devices.find((x: any) => x.slot === n), st: me?.devices?.[String(n)] || { sent: 0, delivered: 0, profit: 0 } })).filter(({ n, d }) => {
+    const q = devQuery.trim().toLowerCase();
+    if (q && !(devId(n).toLowerCase().includes(q) || String(d?.phone || "").includes(q))) return false;
+    if (devFilter === "online") return !!d?.connected;
+    if (devFilter === "offline") return !!d && !d.connected && !!d.registered;
+    return true;
+  });
+  const txView = txs.filter((t: any) => (txFilter === "all" || t.direction === txFilter) && (!txQuery.trim() || String(t.note || "").toLowerCase().includes(txQuery.trim().toLowerCase()))).slice(0, txLimit);
+  const txStatus: Record<string, string> = { success: "✅ Sukses", pending: "⏳ Menunggu", rejected: "❌ Ditolak" };
+  const heads: Record<string, string[]> = { beranda: ["Dashboard", "Ringkasan akun kamu hari ini"], perangkat: ["Devices", "Kelola perangkat WhatsApp kamu"], wallet: ["Withdraw", "Tarik saldo ke rekening kamu"], riwayat_saldo: ["History Transaksi", "Mutasi saldo akun kamu"], referral: ["Referrals", "Bagikan link dan dapatkan komisi"], profil: ["Profile", "Informasi akunmu"] };
   const refLink = (typeof window !== "undefined" ? window.location.origin : "") + "/?ref=" + (me?.referral?.code || "");
   return <main className={"dashboard" + (!isAdmin ? " has-bottomnav" : "")}>
     <header className="topbar"><div className="brand"><span className="brand-mark small">SW</span><div><b>setanwawa</b><small>Promotion dashboard</small></div></div>
       <div className="user-area"><span>{session.user.email}</span><button className="ghost" onClick={signOut}>Keluar</button></div>
     </header>
     <div className="content">
-      {!isAdmin && <div className="pagehead"><h1>{({ beranda: "Dashboard", perangkat: "Devices", wallet: "Wallets", referral: "Referrals", profil: "Profile" } as Record<string, string>)[tab]}</h1><p className="muted">{({ beranda: "Ringkasan akun kamu hari ini", perangkat: "Kelola perangkat WhatsApp kamu", wallet: "Saldo dan penarikan dana", referral: "Undang teman dan dapat komisi", profil: "Informasi akunmu" } as Record<string, string>)[tab]}</p></div>}
+      {!isAdmin && <div className="pagehead"><div><h1>{heads[tab]?.[0]}</h1><p className="muted">{heads[tab]?.[1]}</p></div>{tab === "perangkat" && <button className="ghost refreshbtn" onClick={() => { loadWaStatus(); loadDashboard(); }}>⟳</button>}</div>}
       {isAdmin && <div className="welcome"><div><p className="eyebrow">DASHBOARD {isAdmin ? "ADMIN" : "TOKO"}</p><h1>Halo, {profile?.full_name || "Pemilik Toko"} 👋</h1><p className="muted">Pantau pelanggan dan promosi toko kamu.</p></div><span className="status-pill">● Sistem siap</span></div>}
       {notice && <div className="notice-banner">{notice}</div>}
       {isAdmin && <nav className="tabbar">{tabs.map(t => <button key={t.id} className={tab === t.id ? "tab on" : "tab"} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}>{t.icon} {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}</button>)}</nav>}
-      {tab === "perangkat" && <section className="panel wa-panel">
+      {isAdmin && tab === "perangkat" && <section className="panel wa-panel">
         <div className="panel-heading"><div><p className="eyebrow">KONEKSI WHATSAPP • BAILEYS</p><h2>Hubungkan WhatsApp</h2></div><span className={waStatus?.connected ? "tag good" : "tag"}>{waStatus?.connected ? "● Terhubung" : "○ Belum terhubung"}</span></div>
         <p className="muted">Backend berjalan di server Pterodactyl. Hubungkan akun WhatsApp milik toko melalui QR atau pairing code.</p>
         <div className="form-grid"><div><button className="primary" onClick={showQr} disabled={!!waStatus?.connected}>Tampilkan QR Code</button>{waQr && <div className="qr-box"><img src={waQr} alt="QR WhatsApp untuk ditautkan" /><small>WhatsApp → Perangkat tertaut → Tautkan perangkat</small></div>}</div>
@@ -330,45 +375,85 @@ export default function Home() {
       </section>}
 
       {!isAdmin && tab === "beranda" && <div className="botcard" onClick={() => setTab("perangkat")}><span className="boticon">⚙️</span><div><small>TAMBAH PERANGKAT</small><b>Kelola WhatsApp</b></div><span>›</span></div>}
-      {!isAdmin && tab === "beranda" && <button className="fab" aria-label="Mulai kirim" onClick={() => document.getElementById("run")?.scrollIntoView({ behavior: "smooth" })}>➤</button>}
+      {!isAdmin && <button className="fab" aria-label="Mulai kirim" onClick={() => { setTab("beranda"); setWalletMenu(false); setTimeout(() => document.getElementById("run")?.scrollIntoView({ behavior: "smooth" }), 120); }}>➤</button>}
 
-      {!isAdmin && tab === "wallet" && <section className="panel">
-        <div className="panel-heading"><div><p className="eyebrow">TARIK SALDO</p><h2>Penarikan dana</h2></div></div>
-        <p className="muted">Saldo: <b>{rp(profile?.balance ?? 0)}</b> · Minimal penarikan: <b>{rp(settings?.min_withdraw ?? 0)}</b></p>
-        <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["dana","seabank"] as const).map(m => <button key={m} className={wdMethod === m ? "primary compact" : "ghost"} onClick={() => setWdMethod(m)}>{m === "dana" ? "Dana" : "SeaBank"}</button>)}</div>
-        <input value={wdAcc} onChange={(e) => setWdAcc(e.target.value)} placeholder={wdMethod === "dana" ? "Nomor Dana, contoh 0812xxxx" : "Nomor rekening SeaBank"} inputMode="numeric" />
-        <input value={wdName} onChange={(e) => setWdName(e.target.value)} placeholder="Nama pemilik akun" />
-        <input value={wdAmount} onChange={(e) => setWdAmount(e.target.value)} placeholder="Jumlah penarikan (Rp)" inputMode="numeric" />
-        <button className="primary" disabled={busy || (profile?.balance ?? 0) < (settings?.min_withdraw ?? 0)} onClick={submitWithdraw}>Ajukan penarikan</button>
-        {(profile?.balance ?? 0) < (settings?.min_withdraw ?? 0) && <p className="tiny">Saldo belum mencapai minimal penarikan.</p>}
-        {myWd.length > 0 && <div className="table-wrap"><table><thead><tr><th>Tanggal</th><th>Metode</th><th>Jumlah</th><th>Status</th></tr></thead><tbody>
-          {myWd.map((w: any) => <tr key={w.id}><td>{new Date(w.created_at).toLocaleDateString("id-ID")}</td><td>{w.method === "dana" ? "Dana" : "SeaBank"}</td><td>{rp(w.amount)}</td><td>{wdLabel[w.status]}{w.note ? <><br /><small>{w.note}</small></> : null}</td></tr>)}
-        </tbody></table></div>}
-      </section>}
-
-      {!isAdmin && tab === "referral" && <section className="panel">
-        <div className="panel-heading"><div><p className="eyebrow">REFERRAL</p><h2>Undang &amp; dapat komisi</h2></div></div>
-        <p className="muted">Kamu mendapat <b>{rp(settings?.referral_rate || 0)}</b> untuk setiap pesan sukses dari pengguna yang kamu undang.</p>
-        <p className="tiny">Kode referral kamu</p>
-        <div className="codebox">{me?.referral?.code || "..."}</div>
-        <p className="tiny" style={{wordBreak:"break-all"}}>{refLink}</p>
-        <button className="primary" onClick={copyRef}>Salin link undangan</button>
-        <div className="tile-sub">
-          <div className="sub"><div><small>Diundang</small><strong>{me?.referral?.count ?? 0}</strong></div></div>
-          <div className="sub"><div><small>Komisi referral</small><strong>{rp(me?.referral?.earned ?? 0)}</strong></div></div>
+      {!isAdmin && tab === "perangkat" && <>
+        <div className="statrow3">
+          <article className="tile"><div><small>TOTAL</small><strong>{linkedN}</strong></div><span className="ico info">🖥️</span></article>
+          <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok">📶</span></article>
+          <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad">🚫</span></article>
         </div>
-        {(me?.referral?.invited || []).length > 0 && <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Pesan sukses</th></tr></thead><tbody>
-          {(me?.referral?.invited || []).map((u: any, i: number) => <tr key={i}><td>{u.name}</td><td>{u.success_count}</td></tr>)}
-        </tbody></table></div>}
-      </section>}
+        <div className="btnrow"><button className="primary bigbtn" onClick={startScan}>▣ Scan QR</button><button className="outline bigbtn" onClick={startPair}>🔗 Pairing Code</button></div>
+        {waQr && <div className="qr-box"><img src={waQr} alt="QR WhatsApp" /><small>Menautkan Perangkat {slot}. WhatsApp → Perangkat tertaut → Tautkan perangkat.</small></div>}
+        {showPair && <section className="panel"><p className="tiny"><b>Pairing Code · Perangkat {slot}</b></p><input value={pairPhone} onChange={(e) => setPairPhone(e.target.value)} placeholder="Nomor WhatsApp, contoh 62812xxxxxxx" inputMode="numeric" /><button className="primary" onClick={getPairingCode}>Buat Pairing Code</button>{pairCode && <div className="pair-code">{pairCode}</div>}</section>}
+        <input className="searchbox" value={devQuery} onChange={(e) => setDevQuery(e.target.value)} placeholder="🔍 Cari Device ID / nomor WhatsApp..." />
+        <div className="chips">{([["all", "Semua"], ["online", "Online"], ["offline", "Offline"]] as const).map(([k, l]) => <button key={k} className={"chip" + (devFilter === k ? " on" : "")} onClick={() => setDevFilter(k)}>{l}</button>)}</div>
+        {devCards.map(({ n, d, st }) => <div key={n} className="devcard">
+          <div className="devrow"><span className="dl">DEVICE</span><b>{devId(n)}</b><span className={"pill " + (d?.connected ? "ok" : "bad")}>● {d?.connected ? "CONNECTED" : d?.registered ? "DISCONNECTED" : "KOSONG"}</span></div>
+          <div className="devrow"><span className="dl">No. WA</span><b>{d?.phone ? "+" + d.phone : "-"}</b></div>
+          <div className="devstats"><div><small>Sent:</small> <b>{st.sent}</b></div><div className="green"><small>Delivered:</small> <b>{st.delivered}</b></div><div><small>Profit:</small> <b>{rp(st.profit)}</b></div></div>
+          <div className="devrow"><span className="dl">MODE</span><select className="modesel" value={speed} disabled={running} onChange={(e) => setSpeed(e.target.value as any)}><option value="slow">Slow (±2 pesan/menit)</option><option value="medium">Medium (±5 pesan/menit)</option><option value="fast">Fast (±8 pesan/menit)</option></select>{(d?.registered || d?.connected) ? <button className="logoutbtn" aria-label="Putuskan" onClick={() => disconnectSlot(n)}>⎋</button> : <button className="logoutbtn" aria-label="Tautkan" onClick={startScan}>＋</button>}</div>
+        </div>)}
+        <p className="tiny">Maksimal {maxD} perangkat per akun. Perangkat hanya milik akunmu. Mode kecepatan berlaku untuk semua perangkatmu.</p>
+      </>}
 
-      {!isAdmin && tab === "profil" && <section className="panel">
-        <div className="panel-heading"><div><p className="eyebrow">PROFIL</p><h2>{profile?.full_name || "Pengguna"}</h2></div></div>
-        <p className="muted">{session.user.email}</p>
-        <p className="tiny">Peran: Pengguna · Kode referral: <b>{me?.referral?.code || "-"}</b></p>
-        <p className="tiny">Tarif {rp(settings?.price_per_message || 0)} per pesan sukses · Komisi referral {rp(settings?.referral_rate || 0)} per pesan sukses pengguna undangan.</p>
-        <button className="danger" onClick={signOut}>Keluar</button>
-      </section>}
+      {!isAdmin && tab === "wallet" && <>
+        <div className="balcard"><small>Saldo Tersedia</small><strong>{rp(profile?.balance ?? 0)}</strong></div>
+        <section className="panel"><h3 className="sh">Metode Penarikan</h3>
+          <div className="methodbox"><div>Metode: <b>{profile?.payout_method === "seabank" ? "Bank" : "Wallet"}</b></div><div>Provider: <b>{profile?.payout_method ? (profile.payout_method === "dana" ? "DANA" : "SEABANK") : "-"}</b></div><div>No. Rekening: <b>{profile?.payout_account || "-"}</b></div><div>Atas Nama: <b>{profile?.payout_name || "-"}</b></div></div>
+          <p className="tiny">Ubah metode penarikan di halaman Profile. {!profile?.payout_account && <button className="linkbtn" onClick={() => setTab("profil")}>Atur sekarang</button>}</p>
+        </section>
+        <section className="panel"><h3 className="sh">Jumlah Penarikan <small className="muted">Min. {rp(settings?.min_withdraw ?? 0)}</small></h3>
+          <input value={wdAmount} onChange={(e) => setWdAmount(e.target.value)} placeholder={"Minimum " + rp(settings?.min_withdraw ?? 0)} inputMode="numeric" />
+          <div className="amountchips">{[5000, 10000, 25000, 50000, 100000].map(v => <button key={v} className="chip" onClick={() => setWdAmount(String(v))}>{rp(v)}</button>)}<button className="chip on" onClick={() => setWdAmount(String(profile?.balance ?? 0))}>Semua</button></div>
+          <button className="primary wide" disabled={busy || !profile?.payout_account || Number(wdAmount) < (settings?.min_withdraw ?? 0) || Number(wdAmount) > (profile?.balance ?? 0)} onClick={submitWithdraw}>Tarik Saldo</button>
+        </section>
+        <section className="panel"><h3 className="sh">Riwayat Penarikan</h3>
+          {myWd.length ? myWd.map((w: any) => <div className="todayrow" key={w.id}><div><b>{rp(w.amount)}</b><small>{new Date(w.created_at).toLocaleDateString("id-ID")} · {w.method === "dana" ? "DANA" : "SeaBank"}{w.note ? " · " + w.note : ""}</small></div><div className="r"><small>{wdLabel[w.status]}</small></div></div>) : <p className="muted center">Belum ada penarikan</p>}
+        </section>
+      </>}
+
+      {!isAdmin && tab === "riwayat_saldo" && <>
+        <div className="chips">{([["all", "Semua"], ["credit", "↙ Masuk"], ["debit", "↗ Keluar"]] as const).map(([k, l]) => <button key={k} className={"chip" + (txFilter === k ? " on" : "")} onClick={() => setTxFilter(k)}>{l}</button>)}</div>
+        <section className="panel">
+          <div className="txbar"><span>Tampil</span><select value={txLimit} onChange={(e) => setTxLimit(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select><span>Cari:</span><input value={txQuery} onChange={(e) => setTxQuery(e.target.value)} /></div>
+          <div className="table-wrap"><table><thead><tr><th>ID</th><th>Catatan</th><th>Credit</th><th>Debit</th><th>Status</th></tr></thead><tbody>
+            {txView.map((t: any) => <tr key={t.id}><td>{String(t.id).slice(0, 6)}</td><td>{t.note}<br /><small>{new Date(t.created_at).toLocaleString("id-ID")}</small></td><td className="gr">{t.direction === "credit" ? rp(t.amount) : "-"}</td><td className="rd">{t.direction === "debit" ? rp(t.amount) : "-"}</td><td>{txStatus[t.status] || t.status}</td></tr>)}
+            {!txView.length && <tr><td colSpan={5} className="empty">No data available in table</td></tr>}
+          </tbody></table></div>
+        </section>
+      </>}
+
+      {!isAdmin && tab === "referral" && <>
+        <div className="infocard">ℹ️ Anda mendapatkan <b>{rp(settings?.referral_rate || 0)}</b> untuk setiap pesan yang dikirim oleh user referral Anda.</div>
+        <section className="panel"><small className="lbl">KODE REFERRAL</small><div className="bigcode">{me?.referral?.code || "..."}</div>
+          <div className="btnrow"><button className="primary" onClick={copyRef}>⧉ Copy</button><button className="outline" onClick={shareRef}>⤴ Share</button></div>
+          <div className="linkbox">{refLink}</div>
+        </section>
+        <section className="panel"><small className="lbl">TOTAL PENDAPATAN REFERRAL</small><div className="bigcode">{rp(me?.referral?.earned ?? 0)}</div>
+          <div className="tile-sub"><div className="sub"><div><small>Total Referred</small><strong>{me?.referral?.count ?? 0}</strong></div></div><div className="sub"><div><small>Pendapatan Hari Ini</small><strong>{rp(me?.referral?.today ?? 0)}</strong></div></div></div>
+        </section>
+        <div className="chips">{([["users", "Pengguna"], ["history", "Riwayat"]] as const).map(([k, l]) => <button key={k} className={"chip" + (refTab === k ? " on" : "")} onClick={() => setRefTab(k)}>{l}</button>)}</div>
+        <section className="panel"><h3 className="sh">{refTab === "users" ? "Pengguna dari Referral" : "Riwayat Komisi Referral"}</h3>
+          {refTab === "users" ? ((me?.referral?.invited || []).length ? (me.referral.invited as any[]).map((u: any, i: number) => <div className="todayrow" key={i}><div><b>{u.name}</b></div><div className="r"><small>{u.success_count} pesan sukses</small></div></div>) : <p className="muted">Belum ada yang mendaftar dengan kode Anda.</p>)
+            : (txs.filter((t: any) => t.kind === "referral").length ? txs.filter((t: any) => t.kind === "referral").slice(0, 50).map((t: any) => <div className="todayrow" key={t.id}><div><b>{rp(t.amount)}</b><small>{new Date(t.created_at).toLocaleString("id-ID")}</small></div><div className="r"><small>{t.note}</small></div></div>) : <p className="muted">Belum ada komisi referral.</p>)}
+        </section>
+      </>}
+
+      {!isAdmin && tab === "profil" && <>
+        <section className="panel"><div className="panel-heading"><div><p className="eyebrow">AKUN</p><h2>{profile?.full_name || "Pengguna"}</h2></div></div>
+          <p className="muted">{session.user.email}</p>
+          <p className="tiny">Peran: Pengguna · Kode referral: <b>{me?.referral?.code || "-"}</b></p>
+          <p className="tiny">Tarif {rp(settings?.price_per_message || 0)} per pesan sukses · Komisi referral {rp(settings?.referral_rate || 0)} per pesan sukses pengguna undangan.</p>
+        </section>
+        <section className="panel"><h3 className="sh">Metode Penarikan</h3>
+          <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["dana", "seabank"] as const).map(m => <button key={m} className={pMethod === m ? "primary compact" : "ghost"} onClick={() => setPMethod(m)}>{m === "dana" ? "DANA" : "SeaBank"}</button>)}</div>
+          <input value={pAcc} onChange={(e) => setPAcc(e.target.value)} placeholder={pMethod === "dana" ? "Nomor DANA, contoh 0812xxxx" : "Nomor rekening SeaBank"} inputMode="numeric" />
+          <input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="Atas nama" />
+          <button className="primary wide" disabled={busy} onClick={saveProfilePayout}>Simpan metode penarikan</button>
+        </section>
+        <button className="danger wide" onClick={signOut}>Keluar</button>
+      </>}
 
       {isAdmin && tab === "pengguna" && <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">PENGATURAN ADMIN</p><h2>Tarif &amp; pengguna</h2></div></div>
@@ -451,7 +536,8 @@ export default function Home() {
         </tbody></table></div>
       </section>}
       {isAdmin && tab === "beranda" && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
-      {!isAdmin && <nav className="bottomnav">{tabs.map(t => <button key={t.id} className={(tab === t.id ? "bn on" : "bn") + (t.id === "wallet" ? " center" : "")} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}><span className="bi">{t.icon}</span><small>{t.label}</small></button>)}</nav>}
+      {!isAdmin && walletMenu && <div className="wmenu"><button onClick={() => { setTab("wallet"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}>↙ Withdraw</button><button onClick={() => { setTab("riwayat_saldo"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}>☰ Transaksi Semua</button></div>}
+      {!isAdmin && <nav className="bottomnav">{tabs.map(t => <button key={t.id} className={((t.id === "wallet" && (tab === "wallet" || tab === "riwayat_saldo")) || tab === t.id ? "bn on" : "bn") + (t.id === "wallet" ? " center" : "")} onClick={() => { if (t.id === "wallet") { setWalletMenu(!walletMenu); return; } setWalletMenu(false); setTab(t.id); window.scrollTo({ top: 0 }); }}><span className="bi">{t.icon}</span><small>{t.label}</small></button>)}</nav>}
       <footer>setanwawa · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
     </div>
   </main>;
