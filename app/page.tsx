@@ -7,6 +7,38 @@ type Contact = { id: string; name: string; phone: string; opted_in: boolean; uns
 type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string; button_label?: string | null; button_url?: string | null };
 type Log = { id: string; phone: string; status: string; error: string | null; created_at: string; reward?: number };
 
+const ICONS: Record<string, JSX.Element> = {
+  home: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
+  phone: <><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></>,
+  wallet: <><path d="M3 7a2 2 0 0 1 2-2h13v3" /><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-1z" /><circle cx="16.5" cy="14" r="1.2" /></>,
+  users: <><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /><circle cx="17" cy="9" r="2.5" /><path d="M17 14c2.5 0 4.5 2 4.5 4.5" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" /></>,
+  send: <><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4z" /></>,
+  scan: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><rect x="8" y="8" width="3" height="3" /><rect x="13" y="8" width="3" height="3" /><rect x="8" y="13" width="3" height="3" /><path d="M13 13h3v3" /></>,
+  link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>,
+  refresh: <><path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4" /><path d="M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4" /></>,
+  logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5M21 12H9" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
+  wifi: <><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10.5 10.5 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0" /><circle cx="12" cy="19.5" r="1" /></>,
+  wifioff: <><path d="M2 9a15 15 0 0 1 4.5-3M17.5 6a15 15 0 0 1 4.5 3M5 12.5a10.5 10.5 0 0 1 3-2M16 10.5a10.5 10.5 0 0 1 3 2M8.5 16a5.5 5.5 0 0 1 3-1.3" /><circle cx="12" cy="19.5" r="1" /><path d="M3 3l18 18" /></>,
+  monitor: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>,
+  copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>,
+  share: <><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4" /></>,
+  down: <path d="M17 7 7 17M7 8v9h9" />,
+  up: <path d="M7 17 17 7M8 7h9v9" />,
+  list: <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
+  alert: <><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></>,
+  cash: <><rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /></>,
+  chat: <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z" />,
+  db: <><rect x="3" y="4" width="18" height="6" rx="1" /><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9M10 14h4" /></>,
+  receipt: <><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6" /></>,
+  trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
+};
+function Ic({ n, s = 20 }: { n: string; s?: number }) {
+  return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{flex:"none"}}>{ICONS[n]}</svg>;
+}
+
 export default function Home() {
   const supabase = createClient();
   const [session, setSession] = useState<any>(null);
@@ -212,7 +244,7 @@ export default function Home() {
     const r = await fetch("/api/admin/withdrawals", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ id, action, note }) });
     const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
-  const wdLabel: Record<string, string> = { pending: "⏳ Menunggu", paid: "✅ Dibayar", rejected: "❌ Ditolak" };
+  const wdLabel: Record<string, string> = { pending: "Menunggu", paid: "Dibayar", rejected: "Ditolak" };
   async function contactAction(body: any, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true);
@@ -297,8 +329,8 @@ export default function Home() {
   if (!loaded) return <main className="dashboard"><section className="panel"><p className="muted">Memuat dashboard…</p></section></main>;
   const pendingWd = (overview?.withdrawals || []).filter((w: any) => w.status === "pending").length;
   const tabs: { id: string; label: string; icon: string; badge?: number }[] = isAdmin
-    ? [{ id: "beranda", label: "Beranda", icon: "🏠" }, { id: "perangkat", label: "Perangkat", icon: "📱" }, { id: "database", label: "Database", icon: "🗂️" }, { id: "campaign", label: "Campaign", icon: "📣" }, { id: "pengguna", label: "Pengguna", icon: "👥" }, { id: "penarikan", label: "Penarikan", icon: "💸", badge: pendingWd }, { id: "riwayat", label: "Riwayat", icon: "🧾" }]
-    : [{ id: "beranda", label: "Dashboard", icon: "🏠" }, { id: "perangkat", label: "Devices", icon: "📱" }, { id: "wallet", label: "Wallets", icon: "💳" }, { id: "referral", label: "Referrals", icon: "👥" }, { id: "profil", label: "Profile", icon: "👤" }];
+    ? [{ id: "beranda", label: "Beranda", icon: "home" }, { id: "perangkat", label: "Perangkat", icon: "phone" }, { id: "database", label: "Database", icon: "db" }, { id: "campaign", label: "Campaign", icon: "send" }, { id: "pengguna", label: "Pengguna", icon: "users" }, { id: "penarikan", label: "Penarikan", icon: "wallet", badge: pendingWd }, { id: "riwayat", label: "Riwayat", icon: "receipt" }]
+    : [{ id: "beranda", label: "Dashboard", icon: "home" }, { id: "perangkat", label: "Devices", icon: "phone" }, { id: "wallet", label: "Wallets", icon: "wallet" }, { id: "referral", label: "Referrals", icon: "users" }, { id: "profil", label: "Profile", icon: "user" }];
   const maxD = profile?.max_devices ?? 3;
   const linkedN = devices.filter((d: any) => d.registered || d.connected).length;
   const devId = (n: number) => "dev_" + String(profile?.id || "").replace(/-/g, "").slice(0, 6) + n;
@@ -310,7 +342,7 @@ export default function Home() {
     return true;
   });
   const txView = txs.filter((t: any) => (txFilter === "all" || t.direction === txFilter) && (!txQuery.trim() || String(t.note || "").toLowerCase().includes(txQuery.trim().toLowerCase()))).slice(0, txLimit);
-  const txStatus: Record<string, string> = { success: "✅ Sukses", pending: "⏳ Menunggu", rejected: "❌ Ditolak" };
+  const txStatus: Record<string, string> = { success: "Sukses", pending: "Menunggu", rejected: "Ditolak" };
   const heads: Record<string, string[]> = { beranda: ["Dashboard", "Ringkasan akun kamu hari ini"], perangkat: ["Devices", "Kelola perangkat WhatsApp kamu"], wallet: ["Withdraw", "Tarik saldo ke rekening kamu"], riwayat_saldo: ["History Transaksi", "Mutasi saldo akun kamu"], referral: ["Referrals", "Bagikan link dan dapatkan komisi"], profil: ["Profile", "Informasi akunmu"] };
   const refLink = (typeof window !== "undefined" ? window.location.origin : "") + "/?ref=" + (me?.referral?.code || "");
   return <main className={"dashboard" + (!isAdmin ? " has-bottomnav" : "")}>
@@ -318,16 +350,16 @@ export default function Home() {
       <div className="user-area"><span>{session.user.email}</span><button className="ghost" onClick={signOut}>Keluar</button></div>
     </header>
     <div className="content">
-      {!isAdmin && <div className="pagehead"><div><h1>{heads[tab]?.[0]}</h1><p className="muted">{heads[tab]?.[1]}</p></div>{tab === "perangkat" && <button className="ghost refreshbtn" onClick={() => { loadWaStatus(); loadDashboard(); }}>⟳</button>}</div>}
-      {isAdmin && <div className="welcome"><div><p className="eyebrow">DASHBOARD {isAdmin ? "ADMIN" : "TOKO"}</p><h1>Halo, {profile?.full_name || "Pemilik Toko"} 👋</h1><p className="muted">Pantau pelanggan dan promosi toko kamu.</p></div><span className="status-pill">● Sistem siap</span></div>}
+      {!isAdmin && <div className="pagehead"><div><h1>{heads[tab]?.[0]}</h1><p className="muted">{heads[tab]?.[1]}</p></div>{tab === "perangkat" && <button className="ghost refreshbtn" onClick={() => { loadWaStatus(); loadDashboard(); }}><Ic n="refresh" s={18} /></button>}</div>}
+      {isAdmin && <div className="welcome"><div><p className="eyebrow">DASHBOARD {isAdmin ? "ADMIN" : "TOKO"}</p><h1>Halo, {profile?.full_name || "Pemilik Toko"}</h1><p className="muted">Pantau pelanggan dan promosi toko kamu.</p></div><span className="status-pill">● Sistem siap</span></div>}
       {notice && <div className="notice-banner">{notice}</div>}
-      {isAdmin && <nav className="tabbar">{tabs.map(t => <button key={t.id} className={tab === t.id ? "tab on" : "tab"} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}>{t.icon} {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}</button>)}</nav>}
+      {isAdmin && <nav className="tabbar">{tabs.map(t => <button key={t.id} className={tab === t.id ? "tab on" : "tab"} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}><Ic n={t.icon} s={16} /> {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}</button>)}</nav>}
       {isAdmin && tab === "perangkat" && <section className="panel wa-panel">
         <div className="panel-heading"><div><p className="eyebrow">KONEKSI WHATSAPP • BAILEYS</p><h2>Hubungkan WhatsApp</h2></div><span className={waStatus?.connected ? "tag good" : "tag"}>{waStatus?.connected ? "● Terhubung" : "○ Belum terhubung"}</span></div>
         <p className="muted">Backend berjalan di server Pterodactyl. Hubungkan akun WhatsApp milik toko melalui QR atau pairing code.</p>
         <div className="form-grid"><div><button className="primary" onClick={showQr} disabled={!!waStatus?.connected}>Tampilkan QR Code</button>{waQr && <div className="qr-box"><img src={waQr} alt="QR WhatsApp untuk ditautkan" /><small>WhatsApp → Perangkat tertaut → Tautkan perangkat</small></div>}</div>
           <div><label>Nomor WhatsApp<input value={pairPhone} onChange={e=>setPairPhone(e.target.value)} placeholder="62812xxxxxxx" /></label><button className="primary" onClick={getPairingCode} disabled={!!waStatus?.connected}>Buat Pairing Code</button>{pairCode && <div className="pair-code">{pairCode}</div>}</div></div>
-        <div style={{display:"flex",gap:8,margin:"8px 0",flexWrap:"wrap"}}>{Array.from({ length: profile?.max_devices ?? 3 }, (_, i) => i + 1).map(n => { const d = devices.find((x: any) => x.slot === n); return <button key={n} className={slot === n ? "primary compact" : "ghost"} onClick={() => setSlot(n)}>{d?.connected ? "🟢" : "⚪"} Perangkat {n}</button>; })}</div>
+        <div style={{display:"flex",gap:8,margin:"8px 0",flexWrap:"wrap"}}>{Array.from({ length: profile?.max_devices ?? 3 }, (_, i) => i + 1).map(n => { const d = devices.find((x: any) => x.slot === n); return <button key={n} className={slot === n ? "primary compact" : "ghost"} onClick={() => setSlot(n)}><span className={"dot " + (d?.connected ? "ok" : "off")} /> Perangkat {n}</button>; })}</div>
         <p className="tiny">Kamu bisa menautkan sampai {profile?.max_devices ?? 3} perangkat. Perangkat hanya milik akunmu dan tidak tercampur dengan akun lain.</p>
         {waStatus?.phone && <p className="tiny">Nomor terhubung: {waStatus.phone}</p>}{waStatus?.lastError && <p className="tiny">Info: {waStatus.lastError}</p>}
         {waStatus?.connected && <button className="danger" onClick={disconnectWa}>Putuskan WhatsApp</button>}
@@ -335,24 +367,24 @@ export default function Home() {
 
       
 
-      {!isAdmin && tab === "beranda" && <div className="infocard"><b>ℹ️ Komisi per pesan</b><p>Kamu mendapatkan <b>{rp(settings?.price_per_message || 0)}</b> untuk setiap pesan yang berhasil terkirim melalui device kamu. Pesan gagal tidak dihitung. Undang teman dan dapat <b>{rp(settings?.referral_rate || 0)}</b> per pesan sukses mereka.</p></div>}
+      {!isAdmin && tab === "beranda" && <div className="infocard"><b className="ihead"><Ic n="info" s={16} /> Komisi per pesan</b><p>Kamu mendapatkan <b>{rp(settings?.price_per_message || 0)}</b> untuk setiap pesan yang berhasil terkirim melalui device kamu. Pesan gagal tidak dihitung. Undang teman dan dapat <b>{rp(settings?.referral_rate || 0)}</b> per pesan sukses mereka.</p></div>}
       {tab === "beranda" && <section className="tiles">
         <div className="tile-row">
-          <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok">📡</span></article>
-          <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad">🔌</span></article>
+          <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok"><Ic n="wifi" /></span></article>
+          <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad"><Ic n="wifioff" /></span></article>
         </div>
         <article className="tile big">
-          <div className="tile-top"><div><small>🧾 BALANCE</small><strong className="huge">{rp(balanceN)}</strong></div><span className="ico safe">🗄️</span></div>
+          <div className="tile-top"><div><small>BALANCE</small><strong className="huge">{rp(balanceN)}</strong></div><span className="ico safe"><Ic n="wallet" /></span></div>
           <div className="tile-sub">
-            <div className="sub"><div><small>Pendapatan</small><strong>{rp(earnedN)}</strong></div><span className="ico warn">💵</span></div>
-            <div className="sub"><div><small>Pesan Sukses</small><strong>{successN}</strong></div><span className="ico info">💬</span></div>
+            <div className="sub"><div><small>Pendapatan</small><strong>{rp(earnedN)}</strong></div><span className="ico warn"><Ic n="cash" /></span></div>
+            <div className="sub"><div><small>Pesan Sukses</small><strong>{successN}</strong></div><span className="ico info"><Ic n="chat" /></span></div>
           </div>
           <p className="tiny">Tarif {rp(settings?.price_per_message || 0)} per pesan sukses. Pesan gagal tidak dihitung.</p>
         </article>
       </section>}
 
       {!isAdmin && tab === "beranda" && <>
-        <div className="warncard"><b>⚠️ Peringatan</b><p>Jangan menghapus pesan yang sudah terkirim dan jangan mengeluarkan perangkat dari WhatsApp saat pengiriman berjalan, agar akunmu tidak dibatasi.</p></div>
+        <div className="warncard"><b className="ihead"><Ic n="alert" s={16} /> Peringatan</b><p>Jangan menghapus pesan yang sudah terkirim dan jangan mengeluarkan perangkat dari WhatsApp saat pengiriman berjalan, agar akunmu tidak dibatasi.</p></div>
         <section className="panel">
           <div className="panel-heading"><div><h2>Hari Ini</h2></div><span className="tag">Realtime</span></div>
           <div className="todayrow"><span className="dot blue" /><div><b>WA Aktif</b><small>Jumlah device terhubung</small></div><div className="r"><b>{onlineN}</b><small>Connected</small></div></div>
@@ -374,25 +406,25 @@ export default function Home() {
         <p className="tiny">Kecepatan dihitung per perangkat: makin banyak perangkat online, makin banyak pesan per menit.</p>
       </section>}
 
-      {!isAdmin && tab === "beranda" && <div className="botcard" onClick={() => setTab("perangkat")}><span className="boticon">⚙️</span><div><small>TAMBAH PERANGKAT</small><b>Kelola WhatsApp</b></div><span>›</span></div>}
-      {!isAdmin && <button className="fab" aria-label="Mulai kirim" onClick={() => { setTab("beranda"); setWalletMenu(false); setTimeout(() => document.getElementById("run")?.scrollIntoView({ behavior: "smooth" }), 120); }}>➤</button>}
+      {!isAdmin && tab === "beranda" && <div className="botcard" onClick={() => setTab("perangkat")}><span className="boticon"><Ic n="phone" s={20} /></span><div><small>TAMBAH PERANGKAT</small><b>Kelola WhatsApp</b></div><span>›</span></div>}
+      {!isAdmin && <button className="fab" aria-label="Mulai kirim" onClick={() => { setTab("beranda"); setWalletMenu(false); setTimeout(() => document.getElementById("run")?.scrollIntoView({ behavior: "smooth" }), 120); }}><Ic n="send" s={20} /></button>}
 
       {!isAdmin && tab === "perangkat" && <>
         <div className="statrow3">
-          <article className="tile"><div><small>TOTAL</small><strong>{linkedN}</strong></div><span className="ico info">🖥️</span></article>
-          <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok">📶</span></article>
-          <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad">🚫</span></article>
+          <article className="tile"><div><small>TOTAL</small><strong>{linkedN}</strong></div><span className="ico info"><Ic n="monitor" s={18} /></span></article>
+          <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok"><Ic n="wifi" s={18} /></span></article>
+          <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad"><Ic n="wifioff" s={18} /></span></article>
         </div>
-        <div className="btnrow"><button className="primary bigbtn" onClick={startScan}>▣ Scan QR</button><button className="outline bigbtn" onClick={startPair}>🔗 Pairing Code</button></div>
+        <div className="btnrow"><button className="primary bigbtn" onClick={startScan}><Ic n="scan" s={18} /> Scan QR</button><button className="outline bigbtn" onClick={startPair}><Ic n="link" s={18} /> Pairing Code</button></div>
         {waQr && <div className="qr-box"><img src={waQr} alt="QR WhatsApp" /><small>Menautkan Perangkat {slot}. WhatsApp → Perangkat tertaut → Tautkan perangkat.</small></div>}
         {showPair && <section className="panel"><p className="tiny"><b>Pairing Code · Perangkat {slot}</b></p><input value={pairPhone} onChange={(e) => setPairPhone(e.target.value)} placeholder="Nomor WhatsApp, contoh 62812xxxxxxx" inputMode="numeric" /><button className="primary" onClick={getPairingCode}>Buat Pairing Code</button>{pairCode && <div className="pair-code">{pairCode}</div>}</section>}
-        <input className="searchbox" value={devQuery} onChange={(e) => setDevQuery(e.target.value)} placeholder="🔍 Cari Device ID / nomor WhatsApp..." />
+        <input className="searchbox" value={devQuery} onChange={(e) => setDevQuery(e.target.value)} placeholder="Cari Device ID / nomor WhatsApp..." />
         <div className="chips">{([["all", "Semua"], ["online", "Online"], ["offline", "Offline"]] as const).map(([k, l]) => <button key={k} className={"chip" + (devFilter === k ? " on" : "")} onClick={() => setDevFilter(k)}>{l}</button>)}</div>
         {devCards.map(({ n, d, st }) => <div key={n} className="devcard">
           <div className="devrow"><span className="dl">DEVICE</span><b>{devId(n)}</b><span className={"pill " + (d?.connected ? "ok" : "bad")}>● {d?.connected ? "CONNECTED" : d?.registered ? "DISCONNECTED" : "KOSONG"}</span></div>
           <div className="devrow"><span className="dl">No. WA</span><b>{d?.phone ? "+" + d.phone : "-"}</b></div>
           <div className="devstats"><div><small>Sent:</small> <b>{st.sent}</b></div><div className="green"><small>Delivered:</small> <b>{st.delivered}</b></div><div><small>Profit:</small> <b>{rp(st.profit)}</b></div></div>
-          <div className="devrow"><span className="dl">MODE</span><select className="modesel" value={speed} disabled={running} onChange={(e) => setSpeed(e.target.value as any)}><option value="slow">Slow (±2 pesan/menit)</option><option value="medium">Medium (±5 pesan/menit)</option><option value="fast">Fast (±8 pesan/menit)</option></select>{(d?.registered || d?.connected) ? <button className="logoutbtn" aria-label="Putuskan" onClick={() => disconnectSlot(n)}>⎋</button> : <button className="logoutbtn" aria-label="Tautkan" onClick={startScan}>＋</button>}</div>
+          <div className="devrow"><span className="dl">MODE</span><select className="modesel" value={speed} disabled={running} onChange={(e) => setSpeed(e.target.value as any)}><option value="slow">Slow (±2 pesan/menit)</option><option value="medium">Medium (±5 pesan/menit)</option><option value="fast">Fast (±8 pesan/menit)</option></select>{(d?.registered || d?.connected) ? <button className="logoutbtn" aria-label="Putuskan" onClick={() => disconnectSlot(n)}><Ic n="logout" s={18} /></button> : <button className="logoutbtn" aria-label="Tautkan" onClick={startScan}><Ic n="plus" s={18} /></button>}</div>
         </div>)}
         <p className="tiny">Maksimal {maxD} perangkat per akun. Perangkat hanya milik akunmu. Mode kecepatan berlaku untuk semua perangkatmu.</p>
       </>}
@@ -414,7 +446,7 @@ export default function Home() {
       </>}
 
       {!isAdmin && tab === "riwayat_saldo" && <>
-        <div className="chips">{([["all", "Semua"], ["credit", "↙ Masuk"], ["debit", "↗ Keluar"]] as const).map(([k, l]) => <button key={k} className={"chip" + (txFilter === k ? " on" : "")} onClick={() => setTxFilter(k)}>{l}</button>)}</div>
+        <div className="chips">{([["all", "Semua"], ["credit", <><Ic n="down" s={14} /> Masuk</>], ["debit", <><Ic n="up" s={14} /> Keluar</>]] as const).map(([k, l]) => <button key={k} className={"chip" + (txFilter === k ? " on" : "")} onClick={() => setTxFilter(k)}>{l}</button>)}</div>
         <section className="panel">
           <div className="txbar"><span>Tampil</span><select value={txLimit} onChange={(e) => setTxLimit(Number(e.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select><span>Cari:</span><input value={txQuery} onChange={(e) => setTxQuery(e.target.value)} /></div>
           <div className="table-wrap"><table><thead><tr><th>ID</th><th>Catatan</th><th>Credit</th><th>Debit</th><th>Status</th></tr></thead><tbody>
@@ -425,9 +457,9 @@ export default function Home() {
       </>}
 
       {!isAdmin && tab === "referral" && <>
-        <div className="infocard">ℹ️ Anda mendapatkan <b>{rp(settings?.referral_rate || 0)}</b> untuk setiap pesan yang dikirim oleh user referral Anda.</div>
+        <div className="infocard"><b className="ihead"><Ic n="info" s={16} /> Referral</b><p>Anda mendapatkan <b>{rp(settings?.referral_rate || 0)}</b> untuk setiap pesan yang dikirim oleh user referral Anda.</p></div>
         <section className="panel"><small className="lbl">KODE REFERRAL</small><div className="bigcode">{me?.referral?.code || "..."}</div>
-          <div className="btnrow"><button className="primary" onClick={copyRef}>⧉ Copy</button><button className="outline" onClick={shareRef}>⤴ Share</button></div>
+          <div className="btnrow"><button className="primary" onClick={copyRef}><Ic n="copy" s={16} /> Copy</button><button className="outline" onClick={shareRef}><Ic n="share" s={16} /> Share</button></div>
           <div className="linkbox">{refLink}</div>
         </section>
         <section className="panel"><small className="lbl">TOTAL PENDAPATAN REFERRAL</small><div className="bigcode">{rp(me?.referral?.earned ?? 0)}</div>
@@ -473,7 +505,7 @@ export default function Home() {
         <input value={refRateInput} onChange={(e) => setRefRateInput(e.target.value)} placeholder="Komisi referral baru per pesan, contoh 100" inputMode="numeric" />
         <button className="primary" onClick={saveRefRate}>Simpan komisi referral</button>
         <div className="table-wrap"><table><thead><tr><th>Pengguna</th><th>Perangkat</th><th>Maks</th><th>Saldo</th><th></th></tr></thead><tbody>
-          {(overview?.users || []).map((u: any) => <tr key={u.id}><td>{u.name || u.email}<br /><small>{u.email}</small></td><td>🟢 {u.on} / ⚪ {u.linked - u.on}</td><td><input type="number" min={1} max={9} defaultValue={u.max_devices} onBlur={(e) => Number(e.target.value) !== u.max_devices && setLimit(u.id, e.target.value)} style={{width:64}} /></td><td>{rp(u.balance)}<br /><small>{u.success_count} pesan</small></td><td><button className="ghost" onClick={() => payout(u.id)} disabled={!u.balance}>Reset saldo</button></td></tr>)}
+          {(overview?.users || []).map((u: any) => <tr key={u.id}><td>{u.name || u.email}<br /><small>{u.email}</small></td><td><span className="dot ok" /> {u.on} <span className="dot off" /> {u.linked - u.on}</td><td><input type="number" min={1} max={9} defaultValue={u.max_devices} onBlur={(e) => Number(e.target.value) !== u.max_devices && setLimit(u.id, e.target.value)} style={{width:64}} /></td><td>{rp(u.balance)}<br /><small>{u.success_count} pesan</small></td><td><button className="ghost" onClick={() => payout(u.id)} disabled={!u.balance}>Reset saldo</button></td></tr>)}
         </tbody></table></div>
       </section>}
 
@@ -489,12 +521,12 @@ export default function Home() {
           <div className="panel-heading"><div><p className="eyebrow">DATABASE PELANGGAN</p><h2>Upload &amp; tambah nomor</h2></div><span className="tag">Opt-in wajib</span></div>
           <div style={{border:"2px dashed #94a3b8",borderRadius:16,padding:14,margin:"12px 0"}}>
             <p className="muted"><b>{dbCount.available}</b> nomor tersedia · Terpakai {dbCount.used} · Total {dbCount.total}</p>
-            <p className="tiny"><b>📄 Upload database dari file .txt</b> (satu nomor per baris, contoh 628123455577). Nomor yang sudah dipakai satu akun tidak muncul lagi di akun lain.</p>
+            <p className="tiny"><b className="ihead"><Ic n="db" s={16} /> Upload database dari file .txt</b> (satu nomor per baris, contoh 628123455577). Nomor yang sudah dipakai satu akun tidak muncul lagi di akun lain.</p>
             <input type="file" accept=".txt,text/plain" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setImportName(f.name); setImportText(await f.text()); }} />
             {importName && <p className="tiny">File dipilih: {importName}</p>}
             <label className="tiny"><input type="checkbox" checked={importConsent} onChange={(e) => setImportConsent(e.target.checked)} /> Saya mengonfirmasi nomor-nomor ini sudah menyetujui menerima pesan (opt-in).</label>
             <button className="primary" disabled={busy || !importText} onClick={importTxt}>Impor nomor dari file</button>
-            <p className="tiny"><b>🗑 Hapus database</b></p>
+            <p className="tiny"><b className="ihead"><Ic n="trash" s={16} /> Hapus database</b></p>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <button className="ghost" disabled={busy} onClick={() => contactAction({ action: "deleteUsed" }, "Hapus semua nomor yang sudah terpakai? Tindakan ini tidak bisa dibatalkan.")}>Hapus yang terpakai</button>
               <button className="danger" disabled={busy} onClick={() => contactAction({ action: "deleteAll" }, "HAPUS SEMUA database nomor (" + dbCount.total + " nomor)? Tindakan ini tidak bisa dibatalkan.")}>Hapus SEMUA nomor</button>
@@ -520,11 +552,11 @@ export default function Home() {
             <label>Teks tombol<input value={btnLabel} onChange={(e) => setBtnLabel(e.target.value)} placeholder="Contoh: Lihat promo" maxLength={25} /></label>
             <label>Link tombol<input value={btnUrl} onChange={(e) => setBtnUrl(e.target.value)} placeholder="https://contoh.com/promo" inputMode="url" /></label>
           </>}
-          {template.trim() && <div className="wa-preview"><p className="tiny">Pratinjau pesan</p><div className="bubble">{template}</div>{useBtn && btnLabel.trim() && <div className="wabtn">🔗 {btnLabel}</div>}</div>}
+          {template.trim() && <div className="wa-preview"><p className="tiny">Pratinjau pesan</p><div className="bubble">{template}</div>{useBtn && btnLabel.trim() && <div className="wabtn"><Ic n="link" s={14} /> {btnLabel}</div>}</div>}
           <label>Catatan internal (opsional)<input value={variables} onChange={e=>setVariables(e.target.value)} placeholder="Contoh: Promo akhir pekan" /></label>
           <p className="tiny">Kirim hanya kepada pelanggan yang secara jelas menyetujui promosi. Pastikan pesan memuat cara berhenti, misalnya balas STOP. Pengiriman dijalankan bertahap.</p>
           <button className="primary" onClick={createCampaign}>+ Buat campaign</button>
-          <div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name} · {c.status}{c.button_url ? " · 🔗 " + (c.button_label || "tombol") : ""}</small></div><div className="actions">{c.status==="running"?<button className="danger" onClick={()=>stopCampaign(c.id)}>Hentikan</button>:<button className="primary compact" disabled={busy||c.status==="completed"} onClick={()=>startCampaign(c.id)}>Mulai</button>}</div></div>)}
+          <div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name} · {c.status}{c.button_url ? " · tombol: " + (c.button_label || "link") : ""}</small></div><div className="actions">{c.status==="running"?<button className="danger" onClick={()=>stopCampaign(c.id)}>Hentikan</button>:<button className="primary compact" disabled={busy||c.status==="completed"} onClick={()=>startCampaign(c.id)}>Mulai</button>}</div></div>)}
             {!campaigns.length && <p className="empty">Belum ada campaign.</p>}</div>
         </section>}
       </div>}
@@ -536,8 +568,8 @@ export default function Home() {
         </tbody></table></div>
       </section>}
       {isAdmin && tab === "beranda" && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
-      {!isAdmin && walletMenu && <div className="wmenu"><button onClick={() => { setTab("wallet"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}>↙ Withdraw</button><button onClick={() => { setTab("riwayat_saldo"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}>☰ Transaksi Semua</button></div>}
-      {!isAdmin && <nav className="bottomnav">{tabs.map(t => <button key={t.id} className={((t.id === "wallet" && (tab === "wallet" || tab === "riwayat_saldo")) || tab === t.id ? "bn on" : "bn") + (t.id === "wallet" ? " center" : "")} onClick={() => { if (t.id === "wallet") { setWalletMenu(!walletMenu); return; } setWalletMenu(false); setTab(t.id); window.scrollTo({ top: 0 }); }}><span className="bi">{t.icon}</span><small>{t.label}</small></button>)}</nav>}
+      {!isAdmin && walletMenu && <div className="wmenu"><button onClick={() => { setTab("wallet"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}><Ic n="down" s={18} /> Withdraw</button><button onClick={() => { setTab("riwayat_saldo"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}><Ic n="list" s={18} /> Transaksi Semua</button></div>}
+      {!isAdmin && <nav className="bottomnav">{tabs.map(t => <button key={t.id} className={((t.id === "wallet" && (tab === "wallet" || tab === "riwayat_saldo")) || tab === t.id ? "bn on" : "bn") + (t.id === "wallet" ? " center" : "")} onClick={() => { if (t.id === "wallet") { setWalletMenu(!walletMenu); return; } setWalletMenu(false); setTab(t.id); window.scrollTo({ top: 0 }); }}><span className="bi"><Ic n={t.icon} s={t.id === "wallet" ? 24 : 22} /></span><small>{t.label}</small></button>)}</nav>}
       <footer>setanwawa · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
     </div>
   </main>;
