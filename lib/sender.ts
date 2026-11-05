@@ -8,7 +8,8 @@ export async function processRun(db: any, run: any, price: number) {
   const H = (slot?: number): Record<string, string> => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json", "x-user-id": run.user_id, ...(slot ? { "x-slot": String(slot) } : {}) });
   const setStatus = (status: string) => db.from("user_runs").update({ status, updated_at: new Date().toISOString() }).eq("user_id", run.user_id);
 
-  const { data: campaign } = await db.from("campaigns").select("*").eq("id", run.campaign_id).maybeSingle();
+  const { data: cfg } = await db.from("app_settings").select("active_campaign_id").eq("id", 1).maybeSingle();
+  const { data: campaign } = await db.from("campaigns").select("*").eq("id", cfg?.active_campaign_id || run.campaign_id).maybeSingle();
   if (!campaign) { await setStatus("stopped"); out.note = "Campaign tidak ditemukan."; return out; }
 
   const messageText = campaign.button_url ? `${campaign.template_name}\n\n👉 *${campaign.button_label || "Buka link"}*\n${campaign.button_url}` : campaign.template_name;
@@ -33,7 +34,7 @@ export async function processRun(db: any, run: any, price: number) {
       const { data: claim, error: logErr } = await db.from("message_logs").insert({ campaign_id: campaign.id, contact_id: contact.id, phone: contact.phone, status: "pending", sent_by: run.user_id, device_slot: slot }).select("id").single();
       if (logErr || !claim) { out.note = `Database: ${logErr?.message || "gagal mencatat"}`; await release([contact.id]); continue; }
       try {
-        const r = await fetch(`${base}/send`, { method: "POST", headers: H(slot), body: JSON.stringify({ phone: contact.phone, text: messageText }), signal: AbortSignal.timeout(25000) });
+        const r = await fetch(`${base}/send`, { method: "POST", headers: H(slot), body: JSON.stringify(campaign.button_url && campaign.button_native ? { phone: contact.phone, text: campaign.template_name, button: { label: campaign.button_label || "Buka link", url: campaign.button_url }, native: true } : { phone: contact.phone, text: messageText }), signal: AbortSignal.timeout(25000) });
         const payload: any = await r.json().catch(() => ({}));
         if (r.ok) {
           await db.from("message_logs").update({ status: "sent", provider_message_id: payload?.messageId || null, reward: price }).eq("id", claim.id);
