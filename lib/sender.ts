@@ -11,7 +11,7 @@ export async function processRun(db: any, run: any, price: number) {
   const { data: campaign } = await db.from("campaigns").select("*").eq("id", run.campaign_id).maybeSingle();
   if (!campaign) { await setStatus("stopped"); out.note = "Campaign tidak ditemukan."; return out; }
 
-  const messageText = campaign.button_url ? `${campaign.template_name}\n\n👉 ${campaign.button_label || "Buka link"}\n${campaign.button_url}` : campaign.template_name;
+  const messageText = campaign.button_url ? `${campaign.template_name}\n\n👉 *${campaign.button_label || "Buka link"}*\n${campaign.button_url}` : campaign.template_name;
   let slots: number[] = [];
   try {
     const r = await fetch(`${base}/devices`, { headers: H(), cache: "no-store", signal: AbortSignal.timeout(10000) });
