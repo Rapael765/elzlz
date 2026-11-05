@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import "./stats.css";
 
 type Contact = { id: string; name: string; phone: string; opted_in: boolean; unsubscribed_at: string | null; used_at?: string | null };
-type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string; button_label?: string | null; button_url?: string | null };
+type Campaign = { id: string; name: string; template_name: string; status: string; created_at: string; speed_mode?: string; button_native?: boolean; button_label?: string | null; button_url?: string | null };
 type Log = { id: string; phone: string; status: string; error: string | null; created_at: string; reward?: number };
 
 const ICONS: Record<string, JSX.Element> = {
@@ -65,6 +65,7 @@ export default function Home() {
   const [useBtn, setUseBtn] = useState(false);
   const [btnLabel, setBtnLabel] = useState("");
   const [btnUrl, setBtnUrl] = useState("");
+  const [btnNative, setBtnNative] = useState(false);
   const [refCode, setRefCode] = useState("");
   const [me, setMe] = useState<any>(null);
   const [refRateInput, setRefRateInput] = useState("");
@@ -181,12 +182,12 @@ export default function Home() {
       if (!/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(bUrl)) return setNotice("Link tombol harus diawali http:// atau https:// dan berupa alamat yang valid.");
     }
     const { data, error } = await supabase.from("campaigns").insert({
-      name: campaignName.trim(), template_name: template.trim(), button_label: bLabel, button_url: bUrl,
+      name: campaignName.trim(), template_name: template.trim(), button_label: bLabel, button_url: bUrl, button_native: useBtn && btnNative,
       language_code: "id", body_variables: variables.split("|").map(v => v.trim()).filter(Boolean),
       status: "draft", created_by: session.user.id
     }).select().single();
     if (error) setNotice(error.message);
-    else { setCampaignName(""); setTemplate(""); setVariables(""); setUseBtn(false); setBtnLabel(""); setBtnUrl(""); setNotice("Campaign dibuat. Tekan Mulai saat siap."); loadDashboard(); }
+    else { setCampaignName(""); setTemplate(""); setVariables(""); setUseBtn(false); setBtnLabel(""); setBtnUrl(""); setBtnNative(false); setNotice("Campaign dibuat. Tekan Aktifkan agar dipakai pengguna."); loadDashboard(); }
   }
 
   async function startCampaign(id: string) {
@@ -245,6 +246,13 @@ export default function Home() {
     const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   const wdLabel: Record<string, string> = { pending: "Menunggu", paid: "Dibayar", rejected: "Ditolak" };
+  async function campaignAction(body: any, confirmText?: string) {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setBusy(true);
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    const r = await fetch("/api/admin/campaigns", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify(body) });
+    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+  }
   async function contactAction(body: any, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true);
@@ -315,7 +323,7 @@ export default function Home() {
 
   const active = contacts.filter(c=>c.opted_in && !c.unsubscribed_at).length;
   const isAdmin = profile?.role === "admin";
-  const current = campaigns[0];
+  const current = campaigns.find((c) => c.id === settings?.active_campaign_id) || campaigns[0];
   const running = run?.status === "running";
   const doneThis = false;
   const statusLabel = isAdmin && !current ? "Belum ada" : running ? "● Berjalan" : doneThis ? "Selesai" : run?.status === "stopped" ? "Dihentikan" : "Siap";
@@ -551,13 +559,16 @@ export default function Home() {
           {useBtn && <>
             <label>Teks tombol<input value={btnLabel} onChange={(e) => setBtnLabel(e.target.value)} placeholder="Contoh: Lihat promo" maxLength={25} /></label>
             <label>Link tombol<input value={btnUrl} onChange={(e) => setBtnUrl(e.target.value)} placeholder="https://contoh.com/promo" inputMode="url" /></label>
+            <label className="tiny"><input type="checkbox" checked={btnNative} onChange={(e) => setBtnNative(e.target.checked)} /> Pakai tombol asli WhatsApp (eksperimental)</label>
+            <p className="tiny">Kalau gagal tampil di HP penerima, pesan otomatis dikirim sebagai teks + link. Uji dulu ke nomormu sendiri. Ada risiko akun dibatasi WhatsApp.</p>
           </>}
           {template.trim() && <div className="wa-preview"><p className="tiny">Pratinjau pesan</p><div className="bubble">{template}</div>{useBtn && btnLabel.trim() && <div className="wabtn"><Ic n="link" s={14} /> {btnLabel}</div>}</div>}
           <label>Catatan internal (opsional)<input value={variables} onChange={e=>setVariables(e.target.value)} placeholder="Contoh: Promo akhir pekan" /></label>
           <p className="tiny">Kirim hanya kepada pelanggan yang secara jelas menyetujui promosi. Pastikan pesan memuat cara berhenti, misalnya balas STOP. Pengiriman dijalankan bertahap.</p>
           <button className="primary" onClick={createCampaign}>+ Buat campaign</button>
-          <div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name} · {c.status}{c.button_url ? " · tombol: " + (c.button_label || "link") : ""}</small></div><div className="actions">{c.status==="running"?<button className="danger" onClick={()=>stopCampaign(c.id)}>Hentikan</button>:<button className="primary compact" disabled={busy||c.status==="completed"} onClick={()=>startCampaign(c.id)}>Mulai</button>}</div></div>)}
+          <p className="tiny">Campaign yang berstatus AKTIF dipakai semua pengguna saat menekan Mulai.</p><div className="campaign-list">{campaigns.map(c=><div className="campaign" key={c.id}><div><b>{c.name}</b><small>{c.template_name}{c.button_url ? " · tombol" + (c.button_native ? " asli" : "") + ": " + (c.button_label || "link") : ""}</small></div><div className="actions">{settings?.active_campaign_id === c.id ? <span className="pill ok">AKTIF</span> : <button className="primary compact" disabled={busy} onClick={() => campaignAction({ action: "activate", id: c.id })}>Aktifkan</button>}<button className="ghost" disabled={busy} onClick={() => campaignAction({ action: "delete", id: c.id }, "Hapus campaign " + c.name + "?")}>Hapus</button></div></div>)}
             {!campaigns.length && <p className="empty">Belum ada campaign.</p>}</div>
+          {campaigns.length > 1 && <button className="ghost wide" disabled={busy} onClick={() => campaignAction({ action: "deleteInactive" }, "Hapus semua campaign selain yang aktif? Tindakan ini tidak bisa dibatalkan.")}>Hapus campaign lama</button>}
         </section>}
       </div>}
 
