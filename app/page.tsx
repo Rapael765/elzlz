@@ -39,6 +39,14 @@ function Ic({ n, s = 20 }: { n: string; s?: number }) {
   return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{flex:"none"}}>{ICONS[n]}</svg>;
 }
 
+async function postJson(url: string, token: string | undefined, body: any): Promise<{ ok: boolean; b: any }> {
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    try { return { ok: r.ok, b: await r.json() }; }
+    catch { return { ok: false, b: { error: "Server membalas error (" + r.status + "). Kemungkinan file API belum ter-upload atau deployment belum selesai." } }; }
+  } catch (e: any) { return { ok: false, b: { error: "Gagal terhubung ke server: " + String(e?.message || e) } }; }
+}
+
 export default function Home() {
   const supabase = createClient();
   const [session, setSession] = useState<any>(null);
@@ -197,7 +205,7 @@ export default function Home() {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${s?.access_token}` },
       body: JSON.stringify({ campaignId: id, speed })
     });
-    const body = await res.json();
+    const body = await res.json().catch(() => ({ error: "Server membalas error (" + res.status + "). Cek apakah deployment terbaru sudah selesai." }));
     setBusy(false); setNotice(body.message || body.error || "Permintaan selesai.");
     loadDashboard();
   }
@@ -208,7 +216,7 @@ export default function Home() {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${s?.access_token}` },
       body: JSON.stringify({ campaignId: id })
     });
-    const body = await res.json(); setNotice(body.message || body.error || "Selesai."); loadDashboard();
+    const body = await res.json().catch(() => ({ error: "Server membalas error (" + res.status + "). Cek apakah deployment terbaru sudah selesai." })); setNotice(body.message || body.error || "Selesai."); loadDashboard();
   }
 
   async function savePrice() {
@@ -235,45 +243,39 @@ export default function Home() {
   async function submitWithdraw() {
     const { data: { session: cur } } = await supabase.auth.getSession();
     setBusy(true);
-    const r = await fetch("/api/withdraw", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ amount: Number(wdAmount) }) });
-    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai.");
+    const { ok: rok, b } = await postJson("/api/withdraw", cur?.access_token, { amount: Number(wdAmount) }); const r = { ok: rok }; setBusy(false); setNotice(b.message || b.error || "Selesai.");
     if (r.ok) setWdAmount(""); loadDashboard();
   }
   async function processWd(id: string, action: "paid" | "rejected") {
     const note = action === "rejected" ? (window.prompt("Alasan penolakan (boleh kosong):") || "") : "";
     const { data: { session: cur } } = await supabase.auth.getSession();
-    const r = await fetch("/api/admin/withdrawals", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ id, action, note }) });
-    const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+    const { ok: rok, b } = await postJson("/api/admin/withdrawals", cur?.access_token, { id, action, note }); const r = { ok: rok }; setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   const wdLabel: Record<string, string> = { pending: "Menunggu", paid: "Dibayar", rejected: "Ditolak" };
   async function campaignAction(body: any, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true);
     const { data: { session: cur } } = await supabase.auth.getSession();
-    const r = await fetch("/api/admin/campaigns", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify(body) });
-    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+    const { ok: rok, b } = await postJson("/api/admin/campaigns", cur?.access_token, body); const r = { ok: rok }; setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   async function contactAction(body: any, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true);
     const { data: { session: cur } } = await supabase.auth.getSession();
-    const r = await fetch("/api/admin/contacts", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify(body) });
-    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+    const { ok: rok, b } = await postJson("/api/admin/contacts", cur?.access_token, body); const r = { ok: rok }; setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   async function importTxt() {
     if (!importText) return setNotice("Pilih file .txt dulu.");
     if (!importConsent) return setNotice("Centang konfirmasi persetujuan (opt-in) dulu.");
     setBusy(true);
     const { data: { session: cur } } = await supabase.auth.getSession();
-    const r = await fetch("/api/admin/import", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ text: importText }) });
-    const b = await r.json(); setBusy(false);
+    const { ok: rok, b } = await postJson("/api/admin/import", cur?.access_token, { text: importText }); const r = { ok: rok }; setBusy(false);
     setNotice(r.ok ? `Terbaca ${b.total} nomor: ${b.inserted} baru ditambahkan, ${b.existing} sudah ada di database, ${b.dupInFile} dobel di file, ${b.invalid} tidak valid.` : (b.error || "Gagal impor."));
     if (r.ok) { setImportText(""); setImportName(""); } loadDashboard();
   }
   async function payout(uid: string) {
     const { data: { session: cur } } = await supabase.auth.getSession();
-    const r = await fetch("/api/admin/payout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid }) });
-    const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+    const { ok: rok, b } = await postJson("/api/admin/payout", cur?.access_token, { userId: uid }); const r = { ok: rok }; setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   async function sendNow() {
     setBusy(true);
@@ -282,8 +284,7 @@ export default function Home() {
   }
   async function setLimit(uid: string, v: string) {
     const { data: { session: cur } } = await supabase.auth.getSession();
-    const r = await fetch("/api/admin/limit", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ userId: uid, maxDevices: Number(v) }) });
-    const b = await r.json(); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+    const { ok: rok, b } = await postJson("/api/admin/limit", cur?.access_token, { userId: uid, maxDevices: Number(v) }); const r = { ok: rok }; setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   async function disconnectSlot(n: number) {
     if (!window.confirm("Putuskan Perangkat " + n + "?")) return;
@@ -298,8 +299,7 @@ export default function Home() {
   function startPair() { setWaQr(""); setPairCode(""); pickSlot(); setShowPair(true); }
   async function saveProfilePayout() {
     const { data: { session: cur } } = await supabase.auth.getSession(); setBusy(true);
-    const r = await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${cur?.access_token}` }, body: JSON.stringify({ method: pMethod, account: pAcc, name: pName }) });
-    const b = await r.json(); setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
+    const { ok: rok, b } = await postJson("/api/profile", cur?.access_token, { method: pMethod, account: pAcc, name: pName }); const r = { ok: rok }; setBusy(false); setNotice(b.message || b.error || "Selesai."); loadDashboard();
   }
   async function shareRef() {
     try { if (navigator.share) await navigator.share({ title: "setanwawa", text: "Daftar di setanwawa pakai kode referral " + (me?.referral?.code || ""), url: refLink }); else await copyRef(); } catch {}
