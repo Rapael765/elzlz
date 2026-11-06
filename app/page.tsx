@@ -381,7 +381,7 @@ export default function Home() {
           <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok"><Ic n="wifi" /></span></article>
           <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad"><Ic n="wifioff" /></span></article>
         </div>
-        {!isAdmin && <article className="tile"><div><small>SISA DATABASE</small><strong>{me?.dbAvailable ?? 0}</strong><small className="tiny">nomor siap dikirim, berkurang saat terpakai</small></div><span className="ico info"><Ic n="db" /></span></article>}
+        {!isAdmin && <article className="tile"><div><small>SISA DATABASE</small><strong>{me?.dbAvailable ?? 0}</strong><small className="tiny">total database ready</small></div><span className="ico info"><Ic n="db" /></span></article>}
         <article className="tile big">
           <div className="tile-top"><div><small>BALANCE</small><strong className="huge">{rp(balanceN)}</strong></div><span className="ico safe"><Ic n="wallet" /></span></div>
           <div className="tile-sub">
