@@ -27,8 +27,10 @@ export async function GET(request: NextRequest) {
   }
   const { data: refTx } = await db.from("transactions").select("amount").eq("user_id", user.id).eq("kind", "referral").gte("created_at", start).limit(20000);
   const refToday = (refTx || []).reduce((a: number, t: any) => a + (t.amount || 0), 0);
+  const { count: dbAvailable } = await db.from("contacts").select("id", { count: "exact", head: true }).eq("opted_in", true).is("unsubscribed_at", null).is("used_at", null);
   const mask = (n: string | null) => (n ? n.slice(0, 1) + "***" : "Pengguna");
   return NextResponse.json({
+    dbAvailable: dbAvailable ?? 0,
     today: { sent: (logs || []).length, earned: todayEarned },
     devices,
     referral: { code: prof?.referral_code || "", earned: prof?.referral_earned || 0, today: refToday, rate: st?.referral_rate || 0, count: (invited || []).length, invited: (invited || []).map((u: any) => ({ name: mask(u.full_name), success_count: u.success_count })) },
