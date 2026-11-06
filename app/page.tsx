@@ -404,7 +404,7 @@ export default function Home() {
       </>}
 
       {tab === "beranda" && <section className="panel run-panel" id="run">
-        <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
+        <div className="panel-heading"><div><p className="eyebrow">SETANWAWA</p><h2>Mulai Blast Anda</h2></div><span className="tag">{statusLabel}</span></div>
         {isAdmin ? (current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Belum ada campaign. Buat dulu di bawah.</p>) : <p className="muted">Isi pesan diatur oleh admin. Pilih kecepatan lalu tekan Mulai.</p>}
         <p className="tiny"><b>Kecepatan kirim</b></p>
         <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={running}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
