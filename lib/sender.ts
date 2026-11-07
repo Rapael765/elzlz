@@ -45,6 +45,9 @@ export async function processRun(db: any, run: any, price: number) {
           await release(mine.slice(k).map((c: any) => c.id));
           out.note = `Perangkat ${slot} offline.`;
           break;
+        } else if (r.status === 422) {
+          await db.from("message_logs").update({ status: "invalid", error: String(payload?.error || "Nomor tidak terdaftar di WhatsApp.").slice(0, 300) }).eq("id", claim.id);
+          out.note = "Ada nomor tidak terdaftar WhatsApp: dilewati, tidak dihitung.";
         } else {
           const msg = String(payload?.error || `Backend error ${r.status}`).slice(0, 300);
           await db.from("message_logs").update({ status: "failed", error: msg }).eq("id", claim.id);
