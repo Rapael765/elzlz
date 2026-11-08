@@ -38,7 +38,6 @@ export async function processRun(db: any, run: any, price: number) {
         const payload: any = await r.json().catch(() => ({}));
         if (r.ok) {
           await db.from("message_logs").update({ status: "sent", provider_message_id: payload?.messageId || null, reward: price }).eq("id", claim.id);
-          await db.rpc("credit_user", { uid: run.user_id, amount: price });
           out.sent++;
         } else if (r.status === 409) {
           await db.from("message_logs").delete().eq("id", claim.id); // perangkat offline: nomor dikembalikan ke database
