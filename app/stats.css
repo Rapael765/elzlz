@@ -130,3 +130,54 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px
 .wmenu button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:none;background:none;padding:13px 14px;font-size:15px;color:#1e293b;cursor:pointer;border-radius:12px}
 .wmenu button:hover{background:#f4f5fb}
 .pair-code{font-size:26px;font-weight:800;letter-spacing:.2em;text-align:center;background:#f4f5fb;border-radius:12px;padding:12px;margin-top:10px}
+
+/* ===== Tema hijau ala Gojek ===== */
+:root{--blue:#00aa13;--blue2:#008a0f;--bg:#f2f3f5;--green:#00aa13}
+.brand-mark{background:linear-gradient(135deg,#1fcf3a,#00aa13)!important;box-shadow:0 6px 14px #00aa1340!important}
+.has-bottomnav .topbar{background:#00aa13;border-bottom:none}
+.has-bottomnav .topbar .brand b,.has-bottomnav .topbar .brand small{color:#fff}
+.has-bottomnav .topbar .brand-mark{background:#fff!important;color:#00aa13;box-shadow:none!important}
+.has-bottomnav .topbar .ghost{background:rgba(255,255,255,.2);color:#fff;border:none}
+.dashboard .primary{background:#00aa13;box-shadow:none}
+.dashboard .primary:hover{background:#00920f}
+.outline{color:#00aa13;border-color:#bfe9c4}
+.chip.on{background:#e8f7ea;border-color:#b7e6bd;color:#067a12}
+.tab.on{background:#00aa13;box-shadow:0 4px 12px rgba(0,170,19,.3)}
+.bn.on,.bn.center.on{color:#00aa13}
+.bn.center .bi{width:auto;height:24px;border-radius:0;background:none;color:inherit;margin-top:0;box-shadow:none}
+.fab{background:#00aa13;box-shadow:0 6px 16px rgba(0,170,19,.4)}
+.balcard{background:linear-gradient(135deg,#00b815,#008a0f);box-shadow:0 8px 20px rgba(0,170,19,.3)}
+.infocard,.botcard{background:#e8f7ea;border-color:#c5ebca;color:#067a12}
+.botcard small{color:#067a12}.boticon{background:#00aa13}
+.linkbtn{color:#067a12}
+.dot.blue{background:#00aa13}
+.lbl{color:#6b7280}
+.codebox{border-color:#9bd7a2}
+.wa-preview{background:#e8f1ec}
+.ico.info{background:#e6f1fd;color:#1565c0}
+
+/* beranda pengguna: hero hijau + saldo + menu layanan */
+.gj-hero{margin:-12px -14px 0;padding:4px 16px 0;background:linear-gradient(135deg,#00aa13,#008a0f);border-radius:0 0 22px 22px;color:#fff}
+.gj-hello{margin:0 0 10px;font-weight:700;font-size:15px}
+.gj-balance{position:relative;margin-bottom:-38px;background:#fff;color:#1b1f24;border-radius:16px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.12)}
+.gj-balance small{display:block;color:#6b7280;font-size:12px}
+.gj-balance strong{display:block;font-size:22px;line-height:1.25;color:#111827}
+.gj-sub{display:block;font-size:11px;color:#6b7280;margin-top:2px}
+.gj-bal-actions{display:flex;gap:10px}
+.gj-bal-actions button{border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:4px;color:#00aa13;cursor:pointer;padding:0}
+.gj-bal-actions button span{width:40px;height:40px;border-radius:50%;background:#e8f7ea;display:grid;place-items:center}
+.gj-bal-actions button small{color:#374151;font-size:11px;font-weight:600}
+.gj-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px 6px;margin:52px 0 14px;background:#fff;border-radius:16px;padding:16px 6px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.gj-item{position:relative;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;color:#374151;padding:0}
+.gj-ic{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:#e8f7ea;color:#00aa13}
+.gj-item:nth-child(4n+2) .gj-ic{background:#fdecec;color:#e53935}
+.gj-item:nth-child(4n+3) .gj-ic{background:#e6f1fd;color:#1565c0}
+.gj-item:nth-child(4n+4) .gj-ic{background:#fff3e0;color:#ef6c00}
+.gj-item small{font-size:11px;font-weight:600;text-align:center}
+.gj-badge{position:absolute;top:-5px;right:4px;background:#ef4444;color:#fff;font-style:normal;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px}
+.gj-scroll{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.gj-card{flex:none;width:76%;scroll-snap-align:start;border-radius:16px;padding:16px;color:#fff;display:flex;flex-direction:column;gap:4px;cursor:pointer}
+.gj-card b{font-size:13px;opacity:.95}.gj-card strong{font-size:26px;line-height:1.2}.gj-card span{font-size:12px;opacity:.92;line-height:1.4}
+.gj-card.g1{background:linear-gradient(135deg,#00b815,#067a12)}
+.gj-card.g2{background:linear-gradient(135deg,#ff8f00,#e65100)}
+.gj-card.g3{background:linear-gradient(135deg,#1e88e5,#1565c0)}

@@ -338,7 +338,7 @@ export default function Home() {
   const pendingWd = (overview?.withdrawals || []).filter((w: any) => w.status === "pending").length;
   const tabs: { id: string; label: string; icon: string; badge?: number }[] = isAdmin
     ? [{ id: "beranda", label: "Beranda", icon: "home" }, { id: "perangkat", label: "Perangkat", icon: "phone" }, { id: "database", label: "Database", icon: "db" }, { id: "campaign", label: "Campaign", icon: "send" }, { id: "pengguna", label: "Pengguna", icon: "users" }, { id: "penarikan", label: "Penarikan", icon: "wallet", badge: pendingWd }, { id: "riwayat", label: "Riwayat", icon: "receipt" }]
-    : [{ id: "beranda", label: "Dashboard", icon: "home" }, { id: "perangkat", label: "Devices", icon: "phone" }, { id: "wallet", label: "Wallets", icon: "wallet" }, { id: "referral", label: "Referrals", icon: "users" }, { id: "profil", label: "Profile", icon: "user" }];
+    : [{ id: "beranda", label: "Beranda", icon: "home" }, { id: "perangkat", label: "Perangkat", icon: "phone" }, { id: "wallet", label: "Dompet", icon: "wallet" }, { id: "referral", label: "Referral", icon: "users" }, { id: "profil", label: "Akun", icon: "user" }];
   const maxD = profile?.max_devices ?? 3;
   const linkedN = devices.filter((d: any) => d.registered || d.connected).length;
   const devId = (n: number) => "dev_" + String(profile?.id || "").replace(/-/g, "").slice(0, 6) + n;
@@ -351,14 +351,14 @@ export default function Home() {
   });
   const txView = txs.filter((t: any) => (txFilter === "all" || t.direction === txFilter) && (!txQuery.trim() || String(t.note || "").toLowerCase().includes(txQuery.trim().toLowerCase()))).slice(0, txLimit);
   const txStatus: Record<string, string> = { success: "Sukses", pending: "Menunggu", rejected: "Ditolak" };
-  const heads: Record<string, string[]> = { beranda: ["Dashboard", "Ringkasan akun kamu hari ini"], perangkat: ["Devices", "Kelola perangkat WhatsApp kamu"], wallet: ["Withdraw", "Tarik saldo ke rekening kamu"], riwayat_saldo: ["History Transaksi", "Mutasi saldo akun kamu"], referral: ["Referrals", "Bagikan link dan dapatkan komisi"], profil: ["Profile", "Informasi akunmu"] };
+  const heads: Record<string, string[]> = { beranda: ["Dashboard", "Ringkasan akun kamu hari ini"], perangkat: ["Perangkat", "Kelola perangkat WhatsApp kamu"], wallet: ["Tarik Saldo", "Tarik saldo ke rekening kamu"], riwayat_saldo: ["Riwayat Transaksi", "Mutasi saldo akun kamu"], referral: ["Referral", "Bagikan link dan dapatkan komisi"], profil: ["Akun", "Informasi akunmu"] };
   const refLink = (typeof window !== "undefined" ? window.location.origin : "") + "/?ref=" + (me?.referral?.code || "");
   return <main className={"dashboard" + (!isAdmin ? " has-bottomnav" : "")}>
     <header className="topbar"><div className="brand"><span className="brand-mark small">SW</span><div><b>setanwawa</b><small>Promotion dashboard</small></div></div>
       <div className="user-area"><span>{session.user.email}</span><button className="ghost" onClick={signOut}>Keluar</button></div>
     </header>
     <div className="content">
-      {!isAdmin && <div className="pagehead"><div><h1>{heads[tab]?.[0]}</h1><p className="muted">{heads[tab]?.[1]}</p></div>{tab === "perangkat" && <button className="ghost refreshbtn" onClick={() => { loadWaStatus(); loadDashboard(); }}><Ic n="refresh" s={18} /></button>}</div>}
+      {!isAdmin && tab !== "beranda" && <div className="pagehead"><div><h1>{heads[tab]?.[0]}</h1><p className="muted">{heads[tab]?.[1]}</p></div>{tab === "perangkat" && <button className="ghost refreshbtn" onClick={() => { loadWaStatus(); loadDashboard(); }}><Ic n="refresh" s={18} /></button>}</div>}
       {isAdmin && <div className="welcome"><div><p className="eyebrow">DASHBOARD {isAdmin ? "ADMIN" : "TOKO"}</p><h1>Halo, {profile?.full_name || "Pemilik Toko"}</h1><p className="muted">Pantau pelanggan dan promosi toko kamu.</p></div><span className="status-pill">● Sistem siap</span></div>}
       {notice && <div className="notice-banner">{notice}</div>}
       {isAdmin && <nav className="tabbar">{tabs.map(t => <button key={t.id} className={tab === t.id ? "tab on" : "tab"} onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}><Ic n={t.icon} s={16} /> {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}</button>)}</nav>}
@@ -375,13 +375,35 @@ export default function Home() {
 
       
 
-      {!isAdmin && tab === "beranda" && <div className="infocard"><b className="ihead"><Ic n="info" s={16} /> Komisi per pesan</b><p>Kamu mendapatkan <b>{rp(settings?.price_per_message || 0)}</b> untuk setiap pesan yang berhasil terkirim melalui device kamu. Pesan gagal tidak dihitung. Undang teman dan dapat <b>{rp(settings?.referral_rate || 0)}</b> per pesan sukses mereka.</p></div>}
-      {tab === "beranda" && <section className="tiles">
+      {!isAdmin && tab === "beranda" && <>
+        <section className="gj-hero">
+          <p className="gj-hello">Halo, {profile?.full_name || "Pengguna"}</p>
+          <div className="gj-balance">
+            <div><small>Saldo setanwawa</small><strong>{rp(profile?.balance ?? 0)}</strong><span className="gj-sub">Pendapatan {rp(profile?.earned ?? 0)} · {profile?.success_count ?? 0} pesan sukses</span></div>
+            <div className="gj-bal-actions">
+              <button onClick={() => { setTab("wallet"); window.scrollTo({ top: 0 }); }}><span><Ic n="down" s={20} /></span><small>Tarik</small></button>
+              <button onClick={() => { setTab("riwayat_saldo"); window.scrollTo({ top: 0 }); }}><span><Ic n="list" s={20} /></span><small>Riwayat</small></button>
+            </div>
+          </div>
+        </section>
+        <section className="gj-grid">
+          {([["perangkat", "phone", "Perangkat", null], ["run", "send", "Kirim", null], ["wallet", "wallet", "Tarik", null], ["referral", "users", "Referral", null], ["riwayat_saldo", "receipt", "Riwayat", null], ["profil", "user", "Akun", null], ["info-db", "db", "Database", me?.dbAvailable ?? 0], ["today", "chat", "Hari Ini", null]] as [string, string, string, number | null][]).map(([k, ic, label, badge]) =>
+            <button key={k} className="gj-item" onClick={() => { if (k === "run" || k === "info-db" || k === "today") document.getElementById(k)?.scrollIntoView({ behavior: "smooth", block: "center" }); else { setTab(k); window.scrollTo({ top: 0 }); } }}>
+              <span className="gj-ic"><Ic n={ic} s={22} /></span>{badge !== null && <i className="gj-badge">{badge}</i>}<small>{label}</small>
+            </button>)}
+        </section>
+        <div className="gj-scroll">
+          <article className="gj-card g1"><b>Komisi per pesan</b><strong>{rp(settings?.price_per_message || 0)}</strong><span>untuk setiap pesan sukses lewat perangkatmu. Pesan gagal tidak dihitung.</span></article>
+          <article className="gj-card g2" onClick={() => setTab("referral")}><b>Ajak teman</b><strong>{rp(settings?.referral_rate || 0)}</strong><span>per pesan sukses dari pengguna yang kamu undang.</span></article>
+          <article className="gj-card g3"><b>Sisa database</b><strong>{me?.dbAvailable ?? 0}</strong><span>nomor siap dikirim, berkurang saat terpakai.</span></article>
+        </div>
+      </>}
+      {isAdmin && tab === "beranda" && <section className="tiles">
         <div className="tile-row">
           <article className="tile"><div><small>ONLINE</small><strong>{onlineN}</strong></div><span className="ico ok"><Ic n="wifi" /></span></article>
           <article className="tile"><div><small>OFFLINE</small><strong>{offlineN}</strong></div><span className="ico bad"><Ic n="wifioff" /></span></article>
         </div>
-        {!isAdmin && <article className="tile"><div><small>SISA DATABASE</small><strong>{me?.dbAvailable ?? 0}</strong><small className="tiny">total database ready</small></div><span className="ico info"><Ic n="db" /></span></article>}
+        {!isAdmin && <article className="tile"><div><small>SISA DATABASE</small><strong>{me?.dbAvailable ?? 0}</strong><small className="tiny">nomor siap dikirim, berkurang saat terpakai</small></div><span className="ico info"><Ic n="db" /></span></article>}
         <article className="tile big">
           <div className="tile-top"><div><small>BALANCE</small><strong className="huge">{rp(balanceN)}</strong></div><span className="ico safe"><Ic n="wallet" /></span></div>
           <div className="tile-sub">
@@ -394,17 +416,18 @@ export default function Home() {
 
       {!isAdmin && tab === "beranda" && <>
         <div className="warncard"><b className="ihead"><Ic n="alert" s={16} /> Peringatan</b><p>Jangan menghapus pesan yang sudah terkirim dan jangan mengeluarkan perangkat dari WhatsApp saat pengiriman berjalan, agar akunmu tidak dibatasi.</p></div>
-        <section className="panel">
+        <section className="panel" id="today">
           <div className="panel-heading"><div><h2>Hari Ini</h2></div><span className="tag">Realtime</span></div>
           <div className="todayrow"><span className="dot blue" /><div><b>WA Aktif</b><small>Jumlah device terhubung</small></div><div className="r"><b>{onlineN}</b><small>Connected</small></div></div>
           <div className="todayrow"><span className="dot grey" /><div><b>WA Disconnect</b><small>Perlu reconnect/scan</small></div><div className="r"><b>{offlineN}</b><small>Offline</small></div></div>
           <div className="todayrow"><span className="dot blue" /><div><b>Pesan Sukses</b><small>Terkirim hari ini</small></div><div className="r"><b>{me?.today?.sent ?? 0}</b><small>Delivered</small></div></div>
+          <div className="todayrow" id="info-db"><span className="dot blue" /><div><b>Sisa Database</b><small>Nomor siap dikirim</small></div><div className="r"><b>{me?.dbAvailable ?? 0}</b><small>Nomor</small></div></div>
           <div className="todayrow"><span className="dot orange" /><div><b>Pendapatan</b><small>Komisi hari ini</small></div><div className="r"><b>{rp(me?.today?.earned ?? 0)}</b><small>Today</small></div></div>
         </section>
       </>}
 
       {tab === "beranda" && <section className="panel run-panel" id="run">
-        <div className="panel-heading"><div><p className="eyebrow">SETANWAWA</p><h2>Mulai Blast Anda</h2></div><span className="tag">{statusLabel}</span></div>
+        <div className="panel-heading"><div><p className="eyebrow">KIRIM PROMOSI</p><h2>Jalankan promosi</h2></div><span className="tag">{statusLabel}</span></div>
         {isAdmin ? (current ? <p className="muted"><b>{current.name}</b><br />{current.template_name}</p> : <p className="muted">Belum ada campaign. Buat dulu di bawah.</p>) : <p className="muted">Isi pesan diatur oleh admin. Pilih kecepatan lalu tekan Mulai.</p>}
         <p className="tiny"><b>Kecepatan kirim</b></p>
         <div style={{display:"flex",gap:8,margin:"8px 0"}}>{(["slow","medium","fast"] as const).map(m=><button key={m} className={speed===m?"primary compact":"ghost"} onClick={()=>setSpeed(m)} disabled={running}>{m==="slow"?"Slow":m==="medium"?"Medium":"Fast"}</button>)}</div>
@@ -580,7 +603,7 @@ export default function Home() {
         </tbody></table></div>
       </section>}
       {isAdmin && tab === "beranda" && <section className="admin-note"><b>Panel admin aktif</b><p>Peran admin mengatur hak akses melalui tabel profiles di Supabase. Jangan pernah membagikan service-role key atau token WhatsApp kepada pengguna.</p></section>}
-      {!isAdmin && walletMenu && <div className="wmenu"><button onClick={() => { setTab("wallet"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}><Ic n="down" s={18} /> Withdraw</button><button onClick={() => { setTab("riwayat_saldo"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}><Ic n="list" s={18} /> Transaksi Semua</button></div>}
+      {!isAdmin && walletMenu && <div className="wmenu"><button onClick={() => { setTab("wallet"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}><Ic n="down" s={18} /> Tarik Saldo</button><button onClick={() => { setTab("riwayat_saldo"); setWalletMenu(false); window.scrollTo({ top: 0 }); }}><Ic n="list" s={18} /> Transaksi Semua</button></div>}
       {!isAdmin && <nav className="bottomnav">{tabs.map(t => <button key={t.id} className={((t.id === "wallet" && (tab === "wallet" || tab === "riwayat_saldo")) || tab === t.id ? "bn on" : "bn") + (t.id === "wallet" ? " center" : "")} onClick={() => { if (t.id === "wallet") { setWalletMenu(!walletMenu); return; } setWalletMenu(false); setTab(t.id); window.scrollTo({ top: 0 }); }}><span className="bi"><Ic n={t.icon} s={t.id === "wallet" ? 24 : 22} /></span><small>{t.label}</small></button>)}</nav>}
       <footer>setanwawa · Gunakan secara bertanggung jawab dan hormati pilihan pelanggan.</footer>
     </div>
