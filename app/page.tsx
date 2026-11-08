@@ -393,7 +393,7 @@ export default function Home() {
             </button>)}
         </section>
         <div className="gj-scroll">
-          <article className="gj-card g1"><b>Komisi per pesan</b><strong>{rp(settings?.price_per_message || 0)}</strong><span>untuk setiap pesan sukses lewat perangkatmu. Pesan gagal tidak dihitung.</span></article>
+          <article className="gj-card g1"><b>Komisi per pesan</b><strong>{rp(settings?.price_per_message || 0)}</strong><span>untuk setiap pesan yang sampai ke penerima (centang 2). Pesan gagal atau centang 1 tidak dihitung.</span></article>
           <article className="gj-card g2" onClick={() => setTab("referral")}><b>Ajak teman</b><strong>{rp(settings?.referral_rate || 0)}</strong><span>per pesan sukses dari pengguna yang kamu undang.</span></article>
           <article className="gj-card g3"><b>Sisa database</b><strong>{me?.dbAvailable ?? 0}</strong><span>nomor siap dikirim, berkurang saat terpakai.</span></article>
         </div>
@@ -561,6 +561,7 @@ export default function Home() {
             <p className="tiny"><b className="ihead"><Ic n="trash" s={16} /> Hapus database</b></p>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <button className="ghost" disabled={busy} onClick={() => contactAction({ action: "deleteUsed" }, "Hapus semua nomor yang sudah terpakai? Tindakan ini tidak bisa dibatalkan.")}>Hapus yang terpakai</button>
+              <button className="ghost" disabled={busy} onClick={() => contactAction({ action: "restockUndelivered" }, "Kembalikan nomor yang pesannya belum sampai (lebih dari 30 menit) ke database?")}>Kembalikan yang tak sampai</button>
               <button className="danger" disabled={busy} onClick={() => contactAction({ action: "deleteAll" }, "HAPUS SEMUA database nomor (" + dbCount.total + " nomor)? Tindakan ini tidak bisa dibatalkan.")}>Hapus SEMUA nomor</button>
             </div>
           </div>
@@ -598,7 +599,7 @@ export default function Home() {
 
       {isAdmin && tab === "riwayat" && <section className="panel log-panel"><div className="panel-heading"><div><p className="eyebrow">AKTIVITAS TERBARU</p><h2>Riwayat pengiriman</h2></div><button className="ghost" onClick={loadDashboard}>Muat ulang</button></div>
         <div className="table-wrap"><table><thead><tr><th>Nomor</th><th>Status</th><th>Imbalan</th><th>Detail</th><th>Waktu</th></tr></thead><tbody>
-          {logs.map(l=><tr key={l.id}><td>{l.phone}</td><td>{l.status}</td><td>{l.status === "sent" ? rp(l.reward || 0) : "—"}</td><td>{l.error || "—"}</td><td>{new Date(l.created_at).toLocaleString("id-ID")}</td></tr>)}
+          {logs.map(l=><tr key={l.id}><td>{l.phone}</td><td>{({ sent: "Menunggu centang 2", delivered: "Terkirim", failed: "Gagal", invalid: "Tidak terdaftar", undelivered: "Tidak sampai", pending: "Diproses" } as Record<string, string>)[l.status] || l.status}</td><td>{l.status === "delivered" ? rp(l.reward || 0) : "—"}</td><td>{l.error || "—"}</td><td>{new Date(l.created_at).toLocaleString("id-ID")}</td></tr>)}
           {!logs.length && <tr><td colSpan={4} className="empty">Belum ada riwayat pengiriman.</td></tr>}
         </tbody></table></div>
       </section>}
